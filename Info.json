@@ -1,0 +1,12 @@
+{
+  "Id": "MultiplayerEvents",
+  "DisplayName": "Multiplayer Events",
+  "Author": "froquede",
+  "Version": "0.0.1",
+  "ManagerVersion": "0.22.5.0",
+  "Requirements": [],
+  "LoadAfter": [],
+  "HomePage": "https://github.com/roquef/skaterxl-multiplayer-events",
+  "AssemblyName": "MultiplayerEvents.dll",
+  "EntryMethod": "MultiplayerEvents.Main.Load"
+} 
