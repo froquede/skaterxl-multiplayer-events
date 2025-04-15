@@ -142,18 +142,17 @@ namespace MultiplayerEvents
 
         public static string[] getListOfPlayers()
         {
-            string[] names = new string[MultiplayerManager.Instance.networkPlayers.Count];
-            int i = 0;
+            List<string> names = new List<string>();
+
             foreach (KeyValuePair<int, NetworkPlayerController> entry in MultiplayerManager.Instance.networkPlayers)
             {
-                if (entry.Value)
+                if (entry.Value && entry.Value.UserId != MultiplayerManager.Instance.localPlayer.UserId)
                 {
-                    names[i] = entry.Value.NickName + " | " + entry.Value.UserId;
-                    i++;
+                    names.Add(entry.Value.NickName + " | " + entry.Value.UserId);
                 }
             }
 
-            return names;
+            return names.ToArray();
         }
 
         public static string ComboName()

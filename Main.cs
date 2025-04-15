@@ -130,9 +130,12 @@ namespace MultiplayerEvents
             GUILayout.BeginVertical(GUILayout.Width(440));
             {
                 GUILayout.Label("Event", title);
+
                 if (Utils.isOnline())
                 {
                     Event e = eventManager.multiplayerEvent;
+                    GUILayout.Space(e == null ? 12 : 2);
+
                     if (e != null) {
                         if (eventManager.admin)
                         {
@@ -152,7 +155,7 @@ namespace MultiplayerEvents
                                     GUILayout.Space(12);
                                     if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))
                                     {
-                                        eventManager.Disable();
+                                        eventManager.Disable(true);
                                         eventManager.Reset();
                                     }
                                 }
@@ -164,10 +167,16 @@ namespace MultiplayerEvents
                                     }
                                 }
                             }
+                        }
 
-                            if(eventManager.SKATE != null)
+                        if (eventManager.SKATE != null)
+                        {
+                            GUILayout.Label("Game of S.K.A.T.E.", text);
+                            GUILayout.Space(8);
+
+                            if (e.state == EventState.Stopped || e.state == EventState.End)
                             {
-                                if (e.state == EventState.Stopped)
+                                if (eventManager.admin)
                                 {
                                     GUILayout.Label("Select opponent: ");
                                     eventManager.SKATE.opponent = RGUI.SelectionPopup(eventManager.SKATE.opponent, Utils.getListOfPlayers());
@@ -180,19 +189,20 @@ namespace MultiplayerEvents
                                     GUILayout.Space(12);
                                     if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))
                                     {
-                                        eventManager.Disable();
+                                        eventManager.Disable(true);
                                         eventManager.Reset();
                                     }
                                 }
-                                else
+                            }
+                            else
+                            {
+                                if (GUILayout.Button("Stop game", GUILayout.Height(42f), GUILayout.Width(212f)))
                                 {
-                                    if (GUILayout.Button("Stop game", GUILayout.Height(42f), GUILayout.Width(212f)))
-                                    {
-                                        eventManager.StopEvent();
-                                    }
+                                    eventManager.StopEvent();
                                 }
                             }
                         }
+
                     }
                     else
                     {

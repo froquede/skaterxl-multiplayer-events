@@ -21,6 +21,7 @@ namespace MultiplayerEvents
         public GOSState playerState;
         public bool myTurn = false;
         public TrickCombo actualTrickCombo;
+        public int retriesValue = 1;
 
         public void StartEvent()
         {
@@ -28,10 +29,10 @@ namespace MultiplayerEvents
             bool myTurn = true;
             if (turn < .5f) { myTurn = false; }
 
-            if (myTurn) playerState = GOSState.Setting;
+            if (myTurn) SetSetting();
             else playerState = GOSState.Waiting;
 
-            alreadyDone = new List<TrickCombo>();
+            alreadyDone = null;
 
             SyncTurn(myTurn);
         }
@@ -43,6 +44,8 @@ namespace MultiplayerEvents
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
+
+            Utils.Log("Send sync turn: " + !t);
         }
 
         public GameOfSkate()
@@ -65,9 +68,12 @@ namespace MultiplayerEvents
                 {
                     myTurn = (bool)data[1];
 
+                    Utils.Log("Received turn sync, my turn? " + myTurn);
+                    actualTrickCombo = null;
+
                     if (myTurn)
                     {
-                        if (playerState != GOSState.Defending) playerState = GOSState.Setting;
+                        SetSetting();
                     }
                     else playerState = GOSState.Waiting;
                 }
@@ -75,29 +81,40 @@ namespace MultiplayerEvents
                 if (key == "trickSet" && playerState == GOSState.Waiting)
                 {
                     actualTrickCombo = (TrickCombo)data[1];
-                    playerState = GOSState.Defending;
+
                     if (alreadyDone == null) alreadyDone = new List<TrickCombo>();
                     alreadyDone.Add(actualTrickCombo);
+
+                    playerState = GOSState.Defending;
                 }
 
                 if (key == "letterSet")
                 {
-                    opponentLetters = (bool[])data[1];
+                    opponentLetters = (bool[]) data[1];
+                    actualTrickCombo = null;
+                    SetSetting();
+
                     if (Main.eventManager.admin) CheckEnd();
                 }
 
                 if (key == "defenseSuccess")
                 {
-                    playerState = GOSState.Setting;
                     actualTrickCombo = null;
+                    SetSetting();
                 }
 
                 if (key == "eventEnd")
                 {
-                    state = EventState.End;
                     isWinner = (bool)data[1];
+                    EndEvent();
                 }
             }
+        }
+
+        void SetSetting()
+        {
+            playerState = GOSState.Setting;
+            retries = retriesValue;
         }
 
         public void OnComboEnded(TrickCombo trickC)
@@ -121,7 +138,7 @@ namespace MultiplayerEvents
 
             if (playerState == GOSState.Defending)
             {
-                if(actualTrickCombo != null)
+                if (actualTrickCombo != null)
                 {
                     if (trickC.Landed)
                     {
@@ -141,11 +158,13 @@ namespace MultiplayerEvents
 
         bool CompareCombos(TrickCombo a, TrickCombo b)
         {
+            Utils.Log(a.Tricks.Count + " " + b.Tricks.Count);
             if (a.Tricks.Count != b.Tricks.Count) return false;
 
             for (int i = 0; i < b.Tricks.Count; i++)
             {
-                if (a.Tricks[i] != b.Tricks[i]) return false;
+                Utils.Log(a.Tricks[i] + " " + b.Tricks[i]);
+                if (a.Tricks[i].ToString() != b.Tricks[i].ToString()) return false;
             }
 
             return true;
@@ -162,6 +181,7 @@ namespace MultiplayerEvents
             letters[next] = true;
 
             SetLetter();
+            playerState = GOSState.Waiting;
 
             if (Main.eventManager.admin) CheckEnd();
         }
@@ -170,13 +190,29 @@ namespace MultiplayerEvents
         public void CheckEnd()
         {
             int letterCount = 0, opponentLetterCount = 0;
-            for(int i = 0; i < letters.Length; i++)
+            for (int i = 0; i < letters.Length; i++)
             {
                 if (letters[i]) letterCount++;
                 if (opponentLetters[i]) opponentLetterCount++;
             }
 
-            SendEventEnd(letterCount == modeLetters.Length);
+            if (letterCount == modeLetters.Length || opponentLetterCount == modeLetters.Length)
+            {
+                isWinner = opponentLetterCount == modeLetters.Length;
+
+                SendEventEnd(isWinner);
+                EndEvent();
+            }
+        }
+
+        public void EndEvent()
+        {
+            Main.tick.trickConfirmation = null;
+            Main.tick.GOSUI = false;
+            Main.eventManager.EndEvent();
+            Main.eventManager.Reset();
+
+            Disable();
         }
 
         public void ConfirmTrick()
@@ -191,6 +227,8 @@ namespace MultiplayerEvents
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
+
+            playerState = GOSState.Waiting;
         }
 
         public void SendEventEnd(bool winner)
@@ -212,8 +250,9 @@ namespace MultiplayerEvents
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
 
+            if (alreadyDone == null) alreadyDone = new List<TrickCombo>();
             alreadyDone.Add(actualTrickCombo);
-            PassTurn();
+            playerState = GOSState.Waiting;
         }
 
         public void SetLetter()
@@ -229,8 +268,10 @@ namespace MultiplayerEvents
         {
             retries = 1;
             playerState = GOSState.Waiting;
-            myTurn = !myTurn;
-            SyncTurn(!myTurn);
+            actualTrickCombo = null;
+            myTurn = false;
+
+            SyncTurn(myTurn);
         }
 
         public void Disable()

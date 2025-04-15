@@ -138,7 +138,7 @@ namespace MultiplayerEvents
                 GUILayout.BeginArea(rect);
                 GUILayout.BeginVertical();
                 {
-                    GUILayout.Label((Main.eventManager.SKATE.playerState == GameOfSkate.GOSState.Setting ? "• " : "") + MultiplayerManager.Instance.localPlayer.NickName, styleSmall);
+                    GUILayout.Label((Main.eventManager.SKATE.playerState != GameOfSkate.GOSState.Waiting ? "• " : "") + MultiplayerManager.Instance.localPlayer.NickName, styleSmall);
                     GUILayout.BeginHorizontal();
                     {
                         DrawGOSLetters();
@@ -147,7 +147,7 @@ namespace MultiplayerEvents
 
                     GUILayout.Space(20);
 
-                    GUILayout.Label((Main.eventManager.SKATE.playerState != GameOfSkate.GOSState.Setting ? "• " : "") + Main.eventManager.SKATE.opponentNickname, styleSmall);
+                    GUILayout.Label((Main.eventManager.SKATE.playerState == GameOfSkate.GOSState.Waiting ? "• " : "") + Main.eventManager.SKATE.opponentNickname, styleSmall);
                     GUILayout.BeginHorizontal();
                     {
                         DrawGOSLetters(true);

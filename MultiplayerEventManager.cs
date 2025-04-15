@@ -26,13 +26,14 @@ namespace MultiplayerEvents
         {
             if (photonEvent.Code == 65)
             {
-                Utils.Log("Event " + photonEvent.Code + " received as client");
 
                 object[] data = (object[])photonEvent.CustomData;
                 MessageType type = (MessageType)(int)data[0];
                 EventState state = (EventState)(int)data[1];
                 EventType eventType = (EventType)(int)data[2];
                 string userid = (string)data[3];
+
+                Utils.Log("Event " + photonEvent.Code + " received as client, event " + eventType + " state " + state + " userId: " + userid + " my id: " + MultiplayerManager.Instance.localPlayer.UserId);
 
                 if (userid == "" || userid == MultiplayerManager.Instance.localPlayer.UserId)
                 {
@@ -41,23 +42,30 @@ namespace MultiplayerEvents
                         CreateEvent(eventType, data);
                     }
 
+                    if (state == EventState.Stopped || state == EventState.End)
+                    {
+                        Disable(true);
+                        Reset();
+                    }
+
                     multiplayerEvent.state = state;
                 }
             }
         }
 
-        public void Disable()
+        public void Disable(bool soft = false)
         {
             Main.tick.GOSUI = false;
 
             if (SKATE != null) SKATE.Disable();
             if (race != null) race.Disable();
 
-            PhotonNetwork.RemoveCallbackTarget(this);
+            if (!soft) PhotonNetwork.RemoveCallbackTarget(this);
         }
 
         public void Reset()
         {
+            admin = false;
             SKATE = null;
             race = null;
             multiplayerEvent = null;
@@ -83,7 +91,7 @@ namespace MultiplayerEvents
 
             foreach (KeyValuePair<int, NetworkPlayerController> entry in MultiplayerManager.Instance.networkPlayers)
             {
-                if (entry.Value)
+                if (entry.Value && entry.Value.UserId != MultiplayerManager.Instance.localPlayer.UserId)
                 {
                     multiplayerEvent.participants.Add(entry.Value);
                 }
@@ -98,16 +106,35 @@ namespace MultiplayerEvents
         {
             if (multiplayerEvent != null)
             {
-                multiplayerEvent.ToggleEventState(EventState.Stopped, this.eventType);
+                multiplayerEvent.ToggleEventState(EventState.Stopped, this.eventType, lastOpponent);
                 Utils.ShowNotification("Event stopped", 2f);
+
+                Disable(true);
+                Reset();
             }
         }
 
+        public void EndEvent()
+        {
+            if (multiplayerEvent != null)
+            {
+                Utils.ShowNotification("Event ended - you " + (multiplayerEvent.isWinner ? "won" : "lost"), 2f);
+                multiplayerEvent.ToggleEventState(EventState.End, this.eventType, lastOpponent);
+
+                Disable(true);
+                Reset();
+            }
+        }
+
+
+        public string lastOpponent = "";
         public void StartEvent(string opponent = "")
         {
             if (multiplayerEvent != null)
             {
-                multiplayerEvent.ToggleEventState(EventState.Running, this.eventType);
+                lastOpponent = opponent;
+
+                multiplayerEvent.ToggleEventState(EventState.Running, this.eventType, opponent);
 
                 if (eventType == EventType.SKATE) SKATE.StartEvent();
             }
