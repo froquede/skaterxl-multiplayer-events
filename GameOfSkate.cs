@@ -15,8 +15,9 @@ namespace MultiplayerEvents
         public string opponent = "";
         public string opponentUserID => opponent != "" ? opponent.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None)[1] : "";
         public string opponentNickname => opponent != "" ? opponent.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None)[0] : "";
-        public bool[] letters = new bool[GameConfig.SkateLetterCount];
-        public bool[] opponentLetters = new bool[GameConfig.SkateLetterCount];
+        public char[] modeLetters;         // the word to spell, e.g. S.K.A.T.E.
+        public bool[] letters;
+        public bool[] opponentLetters;
 
         public GOSState playerState;
         public bool myTurn = false;
@@ -52,6 +53,13 @@ namespace MultiplayerEvents
             PhotonNetwork.AddCallbackTarget(this);
             Main.tick.GOSUI = true;
             retriesValue = Main.settings.maxRetries < 0 ? 0 : Main.settings.maxRetries;
+
+            // Both players must use the same word; the owner's word is agreed via the invite
+            // and stored on the manager before this event is created.
+            string word = GameConfig.NormalizeSkateWord(Main.eventManager.agreedSkateWord);
+            modeLetters = word.ToCharArray();
+            letters = new bool[modeLetters.Length];
+            opponentLetters = new bool[modeLetters.Length];
         }
 
         void IOnEventCallback.OnEvent(EventData photonEvent)
@@ -207,7 +215,6 @@ namespace MultiplayerEvents
             if (Main.eventManager.isEventOwner) CheckEnd();
         }
 
-        public char[] modeLetters = new char[] { 's', 'k', 'a', 't', 'e' };
         public void CheckEnd()
         {
             int letterCount = 0, opponentLetterCount = 0;

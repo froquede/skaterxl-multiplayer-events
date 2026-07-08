@@ -6,12 +6,12 @@ a shared multiplayer/lifecycle layer. The first mode shipped is a classic game o
 **S.K.A.T.E.**
 
 > **Proof of concept.** Everything runs client‑side and trust‑based: there is no
-> anti‑cheat, no invite system, and no way to detect who else has the mod installed.
-> It's about having fun, not competition.
+> anti‑cheat. It's about having fun, not competition.
 
 - Works only with **Skater XL v1.2.2.8 (alpha)**
 - Requires **Unity Mod Manager** (UMM `0.22.5.0`)
 - You can leave any event at any time
+- Players running the mod are detected automatically, so you only invite people who can play
 
 ---
 
@@ -28,10 +28,11 @@ All event creation and settings live in the UMM window under **Multiplayer Event
 
 ### Game of S.K.A.T.E.
 
-1. Join a multiplayer room with at least one other player.
+1. Join a multiplayer room with at least one other player who also has the mod.
 2. Open the mod UI → **Game of S.K.A.T.E.**
-3. Select an opponent from the dropdown and press **Start game**.
-4. A coin flip decides who sets first.
+3. Select an opponent (only modded players are listed) and press **Invite**.
+4. The opponent gets an in‑world prompt — **A** to accept, **B** to decline (20s to answer).
+5. On accept, a coin flip decides who sets first. After a game, **Rematch** re‑invites the same opponent.
 
 **Setter** — land any combo Skater XL accepts (including grinds) to set a trick. You may
 **retry while setting** (see *Max retries* below) to avoid bad inputs — after landing you
@@ -51,6 +52,7 @@ First to spell **S.K.A.T.E.** loses.
 | **S.K.A.T.E. letters active color** | Color of letters you've earned. Applies live. |
 | **S.K.A.T.E. letters disabled color** | Color of letters not yet earned. Applies live. |
 | **Max retries while setting** | How many redos the setter gets per turn (0–5). Drives the `Redo (N)` counter. |
+| **S.K.A.T.E. word** | The word to spell when you *host* a game (e.g. `SKATE`, `SK8`). Letters only, up to 8. The invitee adopts the host's word. |
 
 Color changes apply immediately; **Save** persists them between sessions.
 
@@ -102,7 +104,12 @@ the base game didn't use them; keep new ones here so collisions are easy to spot
 | 65 | `NetCode.EventLifecycle` | Event create/start/stop/end (all events) |
 | 66 | `NetCode.RaceParticipantPosition` | Race checkpoint progress |
 | 67 | `NetCode.RaceCheckpointSync` | Race checkpoint layout sync |
+| 68 | `NetCode.Invitation` | Invite handshake (keyed by `InviteMessage`) |
 | 70 | `NetCode.SkateGame` | In‑match S.K.A.T.E. messages (keyed by `SkateMessage`) |
+
+Mod presence is advertised out‑of‑band via a Photon player custom property
+(`GameConfig.PresencePropertyKey`), not a `RaiseEvent` code, so other clients can list who
+has the mod without any polling.
 
 Keyed payloads (like S.K.A.T.E.) use a leading string key from a constants class
 (`SkateMessage.Turn`, `.TrickSet`, `.LetterSet`, `.DefenseSuccess`, `.EventEnd`) so both
@@ -205,6 +212,5 @@ plus `0Harmony`) and compile `MultiplayerEvents.dll` with entry method
 ## Known limitations
 
 - Skater XL **v1.2.2.8 (alpha)** only.
-- No invites, no "who has the mod" detection.
 - No anti‑cheat — everything is client‑side and trusted.
 - **Race** mode is unfinished.

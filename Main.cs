@@ -180,19 +180,33 @@ namespace MultiplayerEvents
                             {
                                 if (eventManager.isEventOwner)
                                 {
-                                    GUILayout.Label("Select opponent: ");
-                                    eventManager.SKATE.opponent = RGUI.SelectionPopup(eventManager.SKATE.opponent, Utils.getListOfPlayers());
-
-                                    if (eventManager.SKATE.opponent != "" && GUILayout.Button("Start game", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                    if (eventManager.pendingInviteTo == "")
                                     {
-                                        eventManager.StartEvent(eventManager.SKATE.opponentUserID);
+                                        GUILayout.Label("Select opponent (must have the mod): ");
+                                        string[] players = Utils.getListOfPlayers(true);
+                                        eventManager.SKATE.opponent = RGUI.SelectionPopup(eventManager.SKATE.opponent, players);
+                                        if (players.Length == 0) GUILayout.Label("No other players with the mod detected", text);
+
+                                        if (eventManager.SKATE.opponent != "" && GUILayout.Button("Invite", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                        {
+                                            eventManager.InviteOpponent();
+                                        }
+
+                                        GUILayout.Space(12);
+                                        if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))
+                                        {
+                                            eventManager.Disable(true);
+                                            eventManager.Reset();
+                                        }
                                     }
-
-                                    GUILayout.Space(12);
-                                    if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))
+                                    else
                                     {
-                                        eventManager.Disable(true);
-                                        eventManager.Reset();
+                                        GUILayout.Label("Waiting for " + eventManager.pendingInviteNick + " to accept...", text);
+                                        GUILayout.Space(8);
+                                        if (GUILayout.Button("Cancel invite", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                        {
+                                            eventManager.CancelInvite();
+                                        }
                                     }
                                 }
                             }
@@ -211,6 +225,15 @@ namespace MultiplayerEvents
                         if (GUILayout.Button("Game of S.K.A.T.E.", GUILayout.Height(42f), GUILayout.Width(212f)))
                         {
                             eventManager.CreateEvent(EventType.SKATE, new object[] {});
+                        }
+
+                        if (eventManager.lastSkateOpponent != "")
+                        {
+                            GUILayout.Space(8);
+                            if (GUILayout.Button("Rematch " + Utils.NickOf(eventManager.lastSkateOpponent), GUILayout.Height(42f), GUILayout.Width(212f)))
+                            {
+                                eventManager.Rematch();
+                            }
                         }
 
                         if (Utils.isAdmin())
@@ -256,6 +279,13 @@ namespace MultiplayerEvents
                 GUILayout.Label(settings.maxRetries.ToString(), GUILayout.Width(24));
                 if (GUILayout.Button("+", GUILayout.Width(28))) settings.maxRetries = Mathf.Min(5, settings.maxRetries + 1);
                 GUILayout.EndHorizontal();
+                GUILayout.Space(8);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("S.K.A.T.E. word (as event owner): ");
+                settings.skateWord = GUILayout.TextField(settings.skateWord, GameConfig.MaxSkateWordLength, GUILayout.Width(120));
+                GUILayout.EndHorizontal();
+                GUILayout.Label("Letters only. In game: " + GameConfig.NormalizeSkateWord(settings.skateWord), text);
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
