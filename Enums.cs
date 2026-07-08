@@ -88,7 +88,26 @@ namespace MultiplayerEvents
         public const string DefaultSkateWord = "SKATE";
         public const int MaxSkateWordLength = 8;            // keeps the HUD readable
 
-        /// <summary>Uppercase, letters-only, clamped word used for a S.K.A.T.E. game.</summary>
+        // Basic, non-exhaustive block list. The word is drawn on other players' screens,
+        // so this just stops the obvious trolling; it is not meant to be comprehensive.
+        static readonly string[] BlockedWordFragments =
+        {
+            "FUCK", "SHIT", "CUNT", "DICK", "COCK", "PUSS", "BITCH", "WHORE", "SLUT",
+            "TWAT", "WANK", "PENIS", "VAGINA", "DILDO", "RAPE", "NAZI", "FAG", "NIGG",
+            "KKK", "COON", "SPIC", "KIKE", "CHINK", "TRANNY", "RETARD",
+        };
+
+        public static bool IsWordAllowed(string upperWord)
+        {
+            if (string.IsNullOrEmpty(upperWord)) return true;
+            foreach (string bad in BlockedWordFragments)
+            {
+                if (upperWord.Contains(bad)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Uppercase, letters-only, clamped, profanity-checked S.K.A.T.E. word.</summary>
         public static string NormalizeSkateWord(string word)
         {
             if (string.IsNullOrEmpty(word)) return DefaultSkateWord;
@@ -102,6 +121,7 @@ namespace MultiplayerEvents
             string result = sb.ToString();
             if (result.Length == 0) return DefaultSkateWord;
             if (result.Length > MaxSkateWordLength) result = result.Substring(0, MaxSkateWordLength);
+            if (!IsWordAllowed(result)) return DefaultSkateWord; // trolls fall back to SKATE
             return result;
         }
     }

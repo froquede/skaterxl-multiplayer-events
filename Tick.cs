@@ -221,18 +221,17 @@ namespace MultiplayerEvents
             int secs = Mathf.Max(0, Mathf.CeilToInt(em.incomingInviteExpiry - Time.time));
             string nick = Utils.NickOf(em.incomingInviteFrom);
             string what = em.incomingInviteType == EventType.SKATE
-                ? "a game of " + DottedWord(GameConfig.NormalizeSkateWord(em.incomingInviteWord))
+                ? DottedWord(GameConfig.NormalizeSkateWord(em.incomingInviteWord))
                 : em.incomingInviteType.ToString();
 
-            Rect rect = new Rect((Screen.width / 2f) - 200, (Screen.height / 2f) - 90, 400, 180);
+            // Bottom-right, matching the trick-confirm HUD (invites are auto-declined
+            // while in a game, so this never overlaps the confirm box).
+            Rect rect = new Rect(Screen.width - 340, Screen.height - 120, 300, 120);
             GUILayout.BeginArea(rect);
-            GUILayout.BeginVertical();
-            GUILayout.Label(nick + " invited you", styleCenterTrick);
-            GUILayout.Label("to " + what, styleCenterTrick);
-            GUILayout.Space(12);
-            GUILayout.Label("Accept (A)      Decline (B)", styleCenterTrick);
-            GUILayout.Space(6);
-            GUILayout.Label("expires in " + secs + "s", styleCenterTrick);
+            GUILayout.BeginVertical(GUILayout.Width(300));
+            GUILayout.Label(nick + " invited you", styleSmall);
+            GUILayout.Label(what + "  (" + secs + "s)", styleSmall);
+            GUILayout.Label("A / X accept, B / O decline", styleRightNoFont);
             GUILayout.EndVertical();
             GUILayout.EndArea();
         }

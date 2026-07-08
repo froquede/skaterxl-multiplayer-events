@@ -285,7 +285,7 @@ namespace MultiplayerEvents
                 GUILayout.Label("S.K.A.T.E. word (as event owner): ");
                 settings.skateWord = GUILayout.TextField(settings.skateWord, GameConfig.MaxSkateWordLength, GUILayout.Width(120));
                 GUILayout.EndHorizontal();
-                GUILayout.Label("Letters only; used for games you host", text);
+                GUILayout.Label("Letters only. In game: " + GameConfig.NormalizeSkateWord(settings.skateWord), text);
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
