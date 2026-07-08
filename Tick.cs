@@ -15,6 +15,7 @@ namespace MultiplayerEvents
         public bool GOSUI = false;
         GUIStyle styleActive, styleDisabled, styleSmall, styleCenterTrick, styleAllRight, styleRightNoFont;
         bool styleCreated = false;
+        Color lastAccentColor, lastFontColor;
         public TrickCombo trickConfirmation;
 
 
@@ -41,8 +42,8 @@ namespace MultiplayerEvents
 
             if (trickConfirmation != null)
             {
-                if (PlayerController.Instance.inputController.player.GetButtonUp(69) || PlayerController.Instance.inputController.player.GetButtonUp(70)) confirmTrick = !confirmTrick;
-                if (PlayerController.Instance.inputController.player.GetButtonUp("A"))
+                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadLeftAction) || PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadRightAction)) confirmTrick = !confirmTrick;
+                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
                 {
                     Main.eventManager.SKATE.OnConfirmEvent(confirmTrick);
                     trickConfirmation = null;
@@ -81,8 +82,13 @@ namespace MultiplayerEvents
         public bool confirmTrick = true;
         void OnGUI()
         {
-            if (!styleCreated)
+            // Rebuild styles on first draw and whenever the configured colors change,
+            // so color settings apply live instead of needing a mod reload.
+            if (!styleCreated || lastAccentColor != Main.settings.fontColorAccent || lastFontColor != Main.settings.fontColor)
             {
+                lastAccentColor = Main.settings.fontColorAccent;
+                lastFontColor = Main.settings.fontColor;
+
                 styleActive = new GUIStyle(GUI.skin.label);
                 styleActive.alignment = TextAnchor.MiddleCenter;
                 styleActive.fontSize = 48;
@@ -168,7 +174,7 @@ namespace MultiplayerEvents
                 GUILayout.Label("Confirm trick? " + Utils.ComboName(), styleSmall);
                 GUILayout.BeginHorizontal(GUILayout.Width(300));
                 GUILayout.Label((confirmTrick ? "• " : "") + "Set trick", styleSmall);
-                GUILayout.Label((confirmTrick ? "" : "• ") + "Redo (1)", styleSmall);
+                GUILayout.Label((confirmTrick ? "" : "• ") + "Redo (" + Main.eventManager.SKATE.retries + ")", styleSmall);
                 GUILayout.EndHorizontal();
 
                 GUILayout.Label("Dpad left - right toggle, A / X confirm", styleRightNoFont);

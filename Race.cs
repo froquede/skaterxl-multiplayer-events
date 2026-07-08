@@ -29,7 +29,7 @@ namespace MultiplayerEvents
                 participantPositions[participantIndex] = checkpointIndex;
 
                 object[] content = new object[] { participantIndex, checkpointIndex };
-                PhotonNetwork.RaiseEvent(66, content, new RaiseEventOptions
+                PhotonNetwork.RaiseEvent(NetCode.RaceParticipantPosition, content, new RaiseEventOptions
                 {
                     Receivers = ReceiverGroup.All
                 }, SendOptions.SendReliable);
@@ -49,9 +49,10 @@ namespace MultiplayerEvents
         {
             Utils.Log("Event " + photonEvent.Code + " received");
 
-            if (photonEvent.Code == 65)
+            if (photonEvent.Code == NetCode.EventLifecycle)
             {
-                object[] data = (object[])photonEvent.CustomData;
+                object[] data = photonEvent.CustomData as object[];
+                if (data == null || data.Length < 2) return;
                 MessageType type = (MessageType)(int)data[0];
                 EventState state = (EventState)(int)data[1];
 
@@ -61,24 +62,26 @@ namespace MultiplayerEvents
                 }
             }
 
-            if (photonEvent.Code == 66)
+            if (photonEvent.Code == NetCode.RaceParticipantPosition)
             {
-                object[] data = (object[])photonEvent.CustomData;
+                object[] data = photonEvent.CustomData as object[];
+                if (data == null || data.Length < 2) return;
                 int participantIndex = (int)data[0];
                 int checkpointIndex = (int)data[1];
 
                 UpdateParticipantPosition(participantIndex, checkpointIndex);
             }
 
-            if (photonEvent.Code == 67)
+            if (photonEvent.Code == NetCode.RaceCheckpointSync)
             {
                 Utils.Log("Syncing all checkpoints");
 
-                object[] data = (object[])photonEvent.CustomData;
+                object[] data = photonEvent.CustomData as object[];
+                if (data == null) return;
 
                 Utils.Log("data size: " + data.Length);
 
-                int checkpointCount = data.Length / 2;
+                int checkpointCount = data.Length / 2; // points come in (A, B) pairs
                 checkpoints.Clear();
 
                 for (int i = 0; i < checkpointCount; i++)
@@ -101,7 +104,7 @@ namespace MultiplayerEvents
 
         void OnEventStart()
         {
-            Main.tick.StartCountdown(10f);
+            Main.tick.StartCountdown(GameConfig.RaceCountdownSeconds);
         }
 
         public void AddNewCheckPoint(CheckPoint cp)
@@ -125,7 +128,7 @@ namespace MultiplayerEvents
             Utils.Log("Will send " + checkpointData.Count);
 
             object[] content = checkpointData.ToArray();
-            PhotonNetwork.RaiseEvent(67, content, new RaiseEventOptions
+            PhotonNetwork.RaiseEvent(NetCode.RaceCheckpointSync, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.All
             }, SendOptions.SendReliable);

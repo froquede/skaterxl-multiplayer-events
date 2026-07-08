@@ -16,7 +16,7 @@ namespace MultiplayerEvents
         {
             Utils.Log("Toggling event to " + newState);
             object[] content = new object[] { (int)MessageType.EventState, (int)newState, (int)type, UserID, Utils.GetPlayerID() };
-            PhotonNetwork.RaiseEvent(65, content, new RaiseEventOptions
+            PhotonNetwork.RaiseEvent(NetCode.EventLifecycle, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.All
             }, SendOptions.SendReliable);

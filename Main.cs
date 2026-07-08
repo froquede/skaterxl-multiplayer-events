@@ -72,8 +72,10 @@ namespace MultiplayerEvents
                 "Yellow"
             };
 
-            fontColor = colorsNames[colors.IndexOf(settings.fontColor)];
-            fontColorAccent = colorsNames[colors.IndexOf(settings.fontColorAccent)];
+            // IndexOf returns -1 if a saved color doesn't round-trip exactly to a
+            // known one; fall back to the first color instead of crashing on load.
+            fontColor = colorsNames[Mathf.Max(0, colors.IndexOf(settings.fontColor))];
+            fontColorAccent = colorsNames[Mathf.Max(0, colors.IndexOf(settings.fontColorAccent))];
 
             return true;
         }
@@ -137,7 +139,7 @@ namespace MultiplayerEvents
                     GUILayout.Space(e == null ? 12 : 2);
 
                     if (e != null) {
-                        if (eventManager.admin)
+                        if (eventManager.isEventOwner)
                         {
                             if (eventManager.race != null)
                             {
@@ -176,7 +178,7 @@ namespace MultiplayerEvents
 
                             if (e.state == EventState.Stopped || e.state == EventState.End)
                             {
-                                if (eventManager.admin)
+                                if (eventManager.isEventOwner)
                                 {
                                     GUILayout.Label("Select opponent: ");
                                     eventManager.SKATE.opponent = RGUI.SelectionPopup(eventManager.SKATE.opponent, Utils.getListOfPlayers());
@@ -231,7 +233,7 @@ namespace MultiplayerEvents
             {
                 GUILayout.Label("Settings", title);
                 GUILayout.Space(2);
-                GUILayout.Label("Save and reload the mod to apply changes", text);
+                GUILayout.Label("Colors apply live; save to persist between sessions", text);
                 GUILayout.Space(8);
 
                 GUILayout.BeginHorizontal();
@@ -245,6 +247,14 @@ namespace MultiplayerEvents
                 GUILayout.Label("S.K.A.T.E. letters disabled color: ");
                 fontColor = colorsNames[colorsNames.IndexOf(RGUI.SelectionPopup(fontColor, colorsNames.ToArray()))];
                 settings.fontColor = colors[colorsNames.IndexOf(fontColor)];
+                GUILayout.EndHorizontal();
+                GUILayout.Space(8);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Max retries while setting: ");
+                if (GUILayout.Button("-", GUILayout.Width(28))) settings.maxRetries = Mathf.Max(0, settings.maxRetries - 1);
+                GUILayout.Label(settings.maxRetries.ToString(), GUILayout.Width(24));
+                if (GUILayout.Button("+", GUILayout.Width(28))) settings.maxRetries = Mathf.Min(5, settings.maxRetries + 1);
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndVertical();

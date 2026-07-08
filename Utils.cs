@@ -65,12 +65,14 @@ namespace MultiplayerEvents
         public static void ShowNotification(object text, float duration) {
             try
             {
-                if(Main.go.transform.childCount > 0) Main.tick.DelayDestroy(Main.go.transform.GetChild(0));
+                // Destroy the GameObject, not the Transform (Unity refuses to destroy a Transform).
+                if(Main.go.transform.childCount > 0) Main.tick.DelayDestroy(Main.go.transform.GetChild(0).gameObject);
             } catch { }
 
             GameObject notification = new GameObject();
             Notification n = notification.AddComponent<Notification>();
-            notification.transform.parent = Main.go.transform.parent;
+            // Parent to Main.go itself so the childCount de-dup above actually sees it.
+            notification.transform.parent = Main.go.transform;
             n.ShowNotification(text.ToString(), duration);
         }
 
@@ -137,7 +139,7 @@ namespace MultiplayerEvents
 
         public static string GetPlayerID()
         {
-            return MultiplayerManager.Instance.localPlayer.NickName + " | " + MultiplayerManager.Instance.localPlayer.UserId;
+            return MultiplayerManager.Instance.localPlayer.NickName + GameConfig.PlayerIdSeparator + MultiplayerManager.Instance.localPlayer.UserId;
         }
 
         public static string[] getListOfPlayers()
@@ -148,7 +150,7 @@ namespace MultiplayerEvents
             {
                 if (entry.Value && entry.Value.UserId != MultiplayerManager.Instance.localPlayer.UserId)
                 {
-                    names.Add(entry.Value.NickName + " | " + entry.Value.UserId);
+                    names.Add(entry.Value.NickName + GameConfig.PlayerIdSeparator + entry.Value.UserId);
                 }
             }
 

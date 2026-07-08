@@ -31,7 +31,9 @@ namespace MultiplayerEvents
 
         void LateUpdate()
         {
-            if (destroy) Destroy(this);
+            // Destroy the whole GameObject; Destroy(this) would only remove the
+            // component and leak an empty GameObject for every notification shown.
+            if (destroy) Destroy(gameObject);
         }
 
         public void ShowNotification(string message, float displayDuration)

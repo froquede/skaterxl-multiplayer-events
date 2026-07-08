@@ -66,12 +66,12 @@ namespace MultiplayerEvents
 
                 if (temporaryPoint != null) temporaryPoint.transform.position = transform.position;
 
-                if (PlayerController.Instance.inputController.player.GetButtonUp("A"))
+                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
                 {
                     AddPoint();
                 }
 
-                if (PlayerController.Instance.inputController.player.GetButton("B"))
+                if (PlayerController.Instance.inputController.player.GetButton(InputBinding.Cancel))
                 {
                     Utils.DisableCursor();
                 }

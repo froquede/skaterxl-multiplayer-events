@@ -13,21 +13,20 @@ namespace MultiplayerEvents
     {
         System.Random rd = new System.Random();
         public string opponent = "";
-        public string opponentUserID => opponent != "" ? opponent.Split(new string[] { " | " }, StringSplitOptions.None)[1] : "";
-        public string opponentNickname => opponent != "" ? opponent.Split(new string[] { " | " }, StringSplitOptions.None)[0] : "";
-        public bool[] letters = new bool[5];
-        public bool[] opponentLetters = new bool[5];
+        public string opponentUserID => opponent != "" ? opponent.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None)[1] : "";
+        public string opponentNickname => opponent != "" ? opponent.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None)[0] : "";
+        public bool[] letters = new bool[GameConfig.SkateLetterCount];
+        public bool[] opponentLetters = new bool[GameConfig.SkateLetterCount];
 
         public GOSState playerState;
         public bool myTurn = false;
         public TrickCombo actualTrickCombo;
-        public int retriesValue = 1;
+        public int retriesValue = GameConfig.DefaultRetries;
 
         public void StartEvent()
         {
             double turn = rd.NextDouble();
-            bool myTurn = true;
-            if (turn < .5f) { myTurn = false; }
+            myTurn = turn >= .5f; // assign the field, not a shadowing local
 
             if (myTurn) SetSetting();
             else playerState = GOSState.Waiting;
@@ -39,8 +38,8 @@ namespace MultiplayerEvents
 
         public void SyncTurn(bool t)
         {
-            object[] content = new object[] { "turn", !t };
-            PhotonNetwork.RaiseEvent(70, content, new RaiseEventOptions
+            object[] content = new object[] { SkateMessage.Turn, !t };
+            PhotonNetwork.RaiseEvent(NetCode.SkateGame, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
@@ -52,19 +51,23 @@ namespace MultiplayerEvents
         {
             PhotonNetwork.AddCallbackTarget(this);
             Main.tick.GOSUI = true;
+            retriesValue = Main.settings.maxRetries < 0 ? 0 : Main.settings.maxRetries;
         }
 
         void IOnEventCallback.OnEvent(EventData photonEvent)
         {
             Player sender = PhotonNetwork.CurrentRoom.GetPlayer(photonEvent.Sender);
+            if (sender == null) return; // sender may have already left the room
             if (opponentUserID != "" && opponentUserID != sender.UserId) return;
 
-            if (photonEvent.Code == 70)
+            if (photonEvent.Code == NetCode.SkateGame)
             {
-                object[] data = (object[])photonEvent.CustomData;
-                string key = (string)data[0];
+                object[] data = photonEvent.CustomData as object[];
+                if (data == null || data.Length < 1) return;
+                string key = data[0] as string;
+                if (key == null) return;
 
-                if (key == "turn")
+                if (key == SkateMessage.Turn)
                 {
                     myTurn = (bool)data[1];
 
@@ -78,7 +81,7 @@ namespace MultiplayerEvents
                     else playerState = GOSState.Waiting;
                 }
 
-                if (key == "trickSet" && playerState == GOSState.Waiting)
+                if (key == SkateMessage.TrickSet && playerState == GOSState.Waiting)
                 {
                     actualTrickCombo = (TrickCombo)data[1];
 
@@ -88,22 +91,22 @@ namespace MultiplayerEvents
                     playerState = GOSState.Defending;
                 }
 
-                if (key == "letterSet")
+                if (key == SkateMessage.LetterSet)
                 {
                     opponentLetters = (bool[]) data[1];
                     actualTrickCombo = null;
                     SetSetting();
 
-                    if (Main.eventManager.admin) CheckEnd();
+                    if (Main.eventManager.isEventOwner) CheckEnd();
                 }
 
-                if (key == "defenseSuccess")
+                if (key == SkateMessage.DefenseSuccess)
                 {
                     actualTrickCombo = null;
                     SetSetting();
                 }
 
-                if (key == "eventEnd")
+                if (key == SkateMessage.EventEnd)
                 {
                     isWinner = (bool)data[1];
                     EndEvent();
@@ -123,6 +126,14 @@ namespace MultiplayerEvents
             {
                 if (trickC.Landed)
                 {
+                    // Like a real game of S.K.A.T.E., a trick already used this game
+                    // can't be set again - keep setting until a fresh trick or a bail.
+                    if (IsAlreadyDone(trickC))
+                    {
+                        Utils.ShowNotification("Trick already used this game - try another", 2f);
+                        return;
+                    }
+
                     actualTrickCombo = trickC;
                     if (retries > 0) ConfirmTrick();
                     else
@@ -133,7 +144,7 @@ namespace MultiplayerEvents
                 else
                 {
                     PassTurn();
-                }                
+                }
             }
 
             if (playerState == GOSState.Defending)
@@ -154,6 +165,16 @@ namespace MultiplayerEvents
                     }
                 }
             }
+        }
+
+        bool IsAlreadyDone(TrickCombo combo)
+        {
+            if (alreadyDone == null) return false;
+            for (int i = 0; i < alreadyDone.Count; i++)
+            {
+                if (CompareCombos(combo, alreadyDone[i])) return true;
+            }
+            return false;
         }
 
         bool CompareCombos(TrickCombo a, TrickCombo b)
@@ -183,7 +204,7 @@ namespace MultiplayerEvents
             SetLetter();
             playerState = GOSState.Waiting;
 
-            if (Main.eventManager.admin) CheckEnd();
+            if (Main.eventManager.isEventOwner) CheckEnd();
         }
 
         public char[] modeLetters = new char[] { 's', 'k', 'a', 't', 'e' };
@@ -209,8 +230,7 @@ namespace MultiplayerEvents
         {
             Main.tick.trickConfirmation = null;
             Main.tick.GOSUI = false;
-            Main.eventManager.EndEvent();
-            Main.eventManager.Reset();
+            Main.eventManager.EndEvent(); // already calls Disable(true) + Reset() internally
 
             Disable();
         }
@@ -222,8 +242,8 @@ namespace MultiplayerEvents
 
         public void SendDefenseSuccess()
         {
-            object[] content = new object[] { "defenseSuccess" };
-            PhotonNetwork.RaiseEvent(70, content, new RaiseEventOptions
+            object[] content = new object[] { SkateMessage.DefenseSuccess };
+            PhotonNetwork.RaiseEvent(NetCode.SkateGame, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
@@ -233,8 +253,8 @@ namespace MultiplayerEvents
 
         public void SendEventEnd(bool winner)
         {
-            object[] content = new object[] { "eventEnd", !winner };
-            PhotonNetwork.RaiseEvent(70, content, new RaiseEventOptions
+            object[] content = new object[] { SkateMessage.EventEnd, !winner };
+            PhotonNetwork.RaiseEvent(NetCode.SkateGame, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
@@ -244,8 +264,8 @@ namespace MultiplayerEvents
 
         public void SetTrick()
         {
-            object[] content = new object[] { "trickSet", actualTrickCombo };
-            PhotonNetwork.RaiseEvent(70, content, new RaiseEventOptions
+            object[] content = new object[] { SkateMessage.TrickSet, actualTrickCombo };
+            PhotonNetwork.RaiseEvent(NetCode.SkateGame, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
@@ -257,8 +277,8 @@ namespace MultiplayerEvents
 
         public void SetLetter()
         {
-            object[] content = new object[] { "letterSet", letters };
-            PhotonNetwork.RaiseEvent(70, content, new RaiseEventOptions
+            object[] content = new object[] { SkateMessage.LetterSet, letters };
+            PhotonNetwork.RaiseEvent(NetCode.SkateGame, content, new RaiseEventOptions
             {
                 Receivers = ReceiverGroup.Others
             }, SendOptions.SendReliable);
@@ -266,7 +286,7 @@ namespace MultiplayerEvents
 
         public void PassTurn()
         {
-            retries = 1;
+            retries = GameConfig.DefaultRetries;
             playerState = GOSState.Waiting;
             actualTrickCombo = null;
             myTurn = false;
@@ -279,7 +299,7 @@ namespace MultiplayerEvents
             PhotonNetwork.RemoveCallbackTarget(this);
         }
 
-        int retries = 1;
+        public int retries = GameConfig.DefaultRetries; // redos left this setting turn (drives the "Redo (N)" label)
         public void OnConfirmEvent(bool confirm)
         {
             if (confirm)
