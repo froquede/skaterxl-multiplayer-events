@@ -40,6 +40,22 @@ namespace MultiplayerEvents
                 countdown += Time.deltaTime;
             }
 
+            // Advertise the mod so others can see who they can invite.
+            Utils.PublishPresence();
+
+            // Invitation timeouts + accept/decline input.
+            MultiplayerEventManager em = Main.eventManager;
+            if (em.pendingInviteTo != "" && Time.time > em.pendingInviteExpiry) em.CancelInvite(true);
+            if (em.hasIncomingInvite)
+            {
+                if (Time.time > em.incomingInviteExpiry) em.DeclineIncomingInvite(true);
+                else if (PlayerController.Instance != null)
+                {
+                    if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm)) em.AcceptIncomingInvite();
+                    else if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Cancel)) em.DeclineIncomingInvite();
+                }
+            }
+
             if (trickConfirmation != null)
             {
                 if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadLeftAction) || PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadRightAction)) confirmTrick = !confirmTrick;
@@ -130,6 +146,8 @@ namespace MultiplayerEvents
                 styleCreated = true;
             }
 
+            DrawInvitePrompt(); // shown even while paused so invites aren't missed
+
             if (GameStateMachine.Instance.CurrentState.GetType() == typeof(PauseState) || GameStateMachine.Instance.CurrentState.GetType() == typeof(ReplayState)) return;
 
             if (GOSUI)
@@ -185,12 +203,45 @@ namespace MultiplayerEvents
 
         void DrawGOSLetters(bool opponent = false)
         {
-            bool[] letters = opponent ? Main.eventManager.SKATE.opponentLetters : Main.eventManager.SKATE.letters;
-            GUILayout.Label("S.", letters[0] ? styleActive : styleDisabled);
-            GUILayout.Label("K.", letters[1] ? styleActive : styleDisabled);
-            GUILayout.Label("A.", letters[2] ? styleActive : styleDisabled);
-            GUILayout.Label("T.", letters[3] ? styleActive : styleDisabled);
-            GUILayout.Label("E.", letters[4] ? styleActive : styleDisabled);
+            GameOfSkate skate = Main.eventManager.SKATE;
+            if (skate == null || skate.modeLetters == null) return;
+
+            bool[] letters = opponent ? skate.opponentLetters : skate.letters;
+            for (int i = 0; i < skate.modeLetters.Length && i < letters.Length; i++)
+            {
+                GUILayout.Label(char.ToUpper(skate.modeLetters[i]) + ".", letters[i] ? styleActive : styleDisabled);
+            }
+        }
+
+        void DrawInvitePrompt()
+        {
+            MultiplayerEventManager em = Main.eventManager;
+            if (!em.hasIncomingInvite) return;
+
+            int secs = Mathf.Max(0, Mathf.CeilToInt(em.incomingInviteExpiry - Time.time));
+            string nick = Utils.NickOf(em.incomingInviteFrom);
+            string what = em.incomingInviteType == EventType.SKATE
+                ? "a game of " + DottedWord(GameConfig.NormalizeSkateWord(em.incomingInviteWord))
+                : em.incomingInviteType.ToString();
+
+            Rect rect = new Rect((Screen.width / 2f) - 200, (Screen.height / 2f) - 90, 400, 180);
+            GUILayout.BeginArea(rect);
+            GUILayout.BeginVertical();
+            GUILayout.Label(nick + " invited you", styleCenterTrick);
+            GUILayout.Label("to " + what, styleCenterTrick);
+            GUILayout.Space(12);
+            GUILayout.Label("Accept (A)      Decline (B)", styleCenterTrick);
+            GUILayout.Space(6);
+            GUILayout.Label("expires in " + secs + "s", styleCenterTrick);
+            GUILayout.EndVertical();
+            GUILayout.EndArea();
+        }
+
+        string DottedWord(string word)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (char c in word) sb.Append(char.ToUpper(c)).Append('.');
+            return sb.ToString();
         }
 
         void TrickName()

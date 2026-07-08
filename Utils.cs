@@ -1,5 +1,9 @@
 ﻿using Cinemachine;
+using ExitGames.Client.Photon;
 using HarmonyLib;
+using Photon.Pun;
+using Photon.Realtime;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -142,19 +146,69 @@ namespace MultiplayerEvents
             return MultiplayerManager.Instance.localPlayer.NickName + GameConfig.PlayerIdSeparator + MultiplayerManager.Instance.localPlayer.UserId;
         }
 
-        public static string[] getListOfPlayers()
+        public static string[] getListOfPlayers(bool moddedOnly = false)
         {
             List<string> names = new List<string>();
+            HashSet<string> modded = moddedOnly ? GetModdedUserIds() : null;
 
             foreach (KeyValuePair<int, NetworkPlayerController> entry in MultiplayerManager.Instance.networkPlayers)
             {
                 if (entry.Value && entry.Value.UserId != MultiplayerManager.Instance.localPlayer.UserId)
                 {
+                    if (moddedOnly && !modded.Contains(entry.Value.UserId)) continue;
                     names.Add(entry.Value.NickName + GameConfig.PlayerIdSeparator + entry.Value.UserId);
                 }
             }
 
             return names.ToArray();
+        }
+
+        // --- Mod presence: advertise ourselves and detect other modded players ---
+
+        static bool presencePublished = false;
+
+        // Advertise that we run the mod via a Photon player custom property, so others can
+        // tell who they can invite. Cheap and idempotent; call it while online.
+        public static void PublishPresence()
+        {
+            if (!isOnline()) { presencePublished = false; return; }
+            if (presencePublished && PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey(GameConfig.PresencePropertyKey)) return;
+
+            PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable
+            {
+                { GameConfig.PresencePropertyKey, Main.modEntry.Info.Version }
+            });
+            presencePublished = true;
+        }
+
+        public static HashSet<string> GetModdedUserIds()
+        {
+            HashSet<string> set = new HashSet<string>();
+            if (PhotonNetwork.CurrentRoom == null) return set;
+
+            foreach (Player p in PhotonNetwork.CurrentRoom.Players.Values)
+            {
+                if (p != null && p.UserId != null && p.CustomProperties != null
+                    && p.CustomProperties.ContainsKey(GameConfig.PresencePropertyKey))
+                {
+                    set.Add(p.UserId);
+                }
+            }
+            return set;
+        }
+
+        // "Nick | UserId" helpers.
+        public static string NickOf(string playerId)
+        {
+            if (string.IsNullOrEmpty(playerId)) return "";
+            return playerId.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None)[0];
+        }
+
+        public static string UserIdOf(string playerId)
+        {
+            if (string.IsNullOrEmpty(playerId)) return "";
+            string[] parts = playerId.Split(new string[] { GameConfig.PlayerIdSeparator }, StringSplitOptions.None);
+            return parts.Length > 1 ? parts[1] : "";
         }
 
         public static string ComboName()
