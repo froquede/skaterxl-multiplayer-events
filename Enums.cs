@@ -84,6 +84,11 @@ namespace MultiplayerEvents
         public const int DefaultRetries = 1;
 
         public const float InviteTimeoutSeconds = 20f;
+        // Invite spam guard: a sender may trigger up to InviteMaxPerWindow invites per rolling
+        // InviteWindowSeconds; extra invites are silently dropped. Lenient enough for fat-fingers
+        // / legit re-invites, but stops a player spamming popups at a streamer.
+        public const float InviteWindowSeconds = 30f;
+        public const int InviteMaxPerWindow = 3;
         public const string PresencePropertyKey = "ME_ver"; // Photon custom prop advertising the mod
         public const string DefaultSkateWord = "SKATE";
         public const int MaxSkateWordLength = 8;            // keeps the HUD readable
@@ -100,14 +105,41 @@ namespace MultiplayerEvents
         public static bool IsWordAllowed(string upperWord)
         {
             if (string.IsNullOrEmpty(upperWord)) return true;
+
+            // Check the raw word AND a de-leeted copy so digit substitutions (N1GG, F4G, 5PIC,
+            // CH1NK, R3TARD, 8ITCH, ...) can't sneak a slur past the list. Digits are still shown
+            // as typed in game; this mapping only feeds the profanity check.
+            string deLeet = DeLeet(upperWord);
             foreach (string bad in BlockedWordFragments)
             {
-                if (upperWord.Contains(bad)) return false;
+                if (upperWord.Contains(bad) || deLeet.Contains(bad)) return false;
             }
             return true;
         }
 
-        /// <summary>Uppercase, letters-only, clamped, profanity-checked S.K.A.T.E. word.</summary>
+        static string DeLeet(string s)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s)
+            {
+                switch (c)
+                {
+                    case '0': sb.Append('O'); break;
+                    case '1': sb.Append('I'); break;
+                    case '3': sb.Append('E'); break;
+                    case '4': sb.Append('A'); break;
+                    case '5': sb.Append('S'); break;
+                    case '6': sb.Append('G'); break;
+                    case '7': sb.Append('T'); break;
+                    case '8': sb.Append('B'); break;
+                    case '9': sb.Append('G'); break;
+                    default:  sb.Append(c); break;
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Uppercase, alphanumeric-only, clamped, profanity-checked S.K.A.T.E. word.</summary>
         public static string NormalizeSkateWord(string word)
         {
             if (string.IsNullOrEmpty(word)) return DefaultSkateWord;
@@ -115,7 +147,8 @@ namespace MultiplayerEvents
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
             foreach (char c in word.Trim().ToUpper())
             {
-                if (char.IsLetter(c)) sb.Append(c);
+                // Allow digits too so words like "SK8" work; only spaces/punctuation are dropped.
+                if (char.IsLetterOrDigit(c)) sb.Append(c);
             }
 
             string result = sb.ToString();

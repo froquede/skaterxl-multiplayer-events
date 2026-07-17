@@ -19,13 +19,22 @@ namespace MultiplayerEvents
         public bool[] letters;
         public bool[] opponentLetters;
 
-        public GOSState playerState;
+        // Default to Waiting (not the enum's zero-value Setting): a joiner is constructed from
+        // the Running lifecycle event before the owner's SyncTurn arrives, and must not treat
+        // a landed trick as its own turn in that gap. The owner sets its state in StartEvent.
+        public GOSState playerState = GOSState.Waiting;
+        // True only once the match is actually live (owner: after StartEvent; joiner: on join).
+        // Gates the in-world HUD and rejects stray game traffic while just sitting in the menu.
+        public bool running = false;
         public bool myTurn = false;
         public TrickCombo actualTrickCombo;
         public int retriesValue = GameConfig.DefaultRetries;
 
         public void StartEvent()
         {
+            running = true;            // match is now live: show the HUD and accept game traffic
+            Main.tick.GOSUI = true;
+
             double turn = rd.NextDouble();
             myTurn = turn >= .5f; // assign the field, not a shadowing local
 
@@ -51,8 +60,13 @@ namespace MultiplayerEvents
         public GameOfSkate()
         {
             PhotonNetwork.AddCallbackTarget(this);
-            Main.tick.GOSUI = true;
-            retriesValue = Main.settings.maxRetries < 0 ? 0 : Main.settings.maxRetries;
+            // NB: GOSUI (the in-world HUD) is intentionally NOT enabled here. It should appear only
+            // once the match is actually running - owner via StartEvent, joiner via CreateEvent on
+            // join - not the moment the owner opens the "create game" menu.
+            // Redo allowance is owner-authoritative and agreed via the invite (like the word),
+            // so both players show the same "Redo (N)". Don't read local settings here or the
+            // two machines desync (owner's setting vs. joiner's).
+            retriesValue = Main.eventManager.agreedRetries < 0 ? 0 : Main.eventManager.agreedRetries;
 
             // Both players must use the same word; the owner's word is agreed via the invite
             // and stored on the manager before this event is created.
@@ -64,9 +78,11 @@ namespace MultiplayerEvents
 
         void IOnEventCallback.OnEvent(EventData photonEvent)
         {
+            if (!running) return; // not a live match yet (menu open) - ignore all game traffic
             Player sender = PhotonNetwork.CurrentRoom.GetPlayer(photonEvent.Sender);
             if (sender == null) return; // sender may have already left the room
             if (opponentUserID != "" && opponentUserID != sender.UserId) return;
+            if (Utils.IsBlocked(sender.UserId, sender.NickName)) return; // ignore a blocked player's game traffic
 
             if (photonEvent.Code == NetCode.SkateGame)
             {
@@ -138,7 +154,7 @@ namespace MultiplayerEvents
                     // can't be set again - keep setting until a fresh trick or a bail.
                     if (IsAlreadyDone(trickC))
                     {
-                        Utils.ShowNotification("Trick already used this game - try another", 2f);
+                        Utils.ShowNotification("Trick already used", 2f);
                         return;
                     }
 
@@ -207,6 +223,12 @@ namespace MultiplayerEvents
                 if (letters[i]) next++;
             }
 
+            // CheckEnd (which ends the game at a full word) only runs on the event owner, so a
+            // non-owner relies on the owner's EventEnd round-trip to stop. Under packet loss or
+            // desync a client can be asked to defend with the word already full; guard so we
+            // don't index past the array. The owner's EventEnd will still tear the game down.
+            if (next >= letters.Length) return;
+
             letters[next] = true;
 
             SetLetter();
@@ -218,11 +240,10 @@ namespace MultiplayerEvents
         public void CheckEnd()
         {
             int letterCount = 0, opponentLetterCount = 0;
-            for (int i = 0; i < letters.Length; i++)
-            {
-                if (letters[i]) letterCount++;
-                if (opponentLetters[i]) opponentLetterCount++;
-            }
+            // opponentLetters is replaced wholesale from network payloads (LetterSet), so don't
+            // assume it matches letters.Length; bound each array by its own length.
+            for (int i = 0; i < letters.Length; i++) if (letters[i]) letterCount++;
+            for (int i = 0; i < opponentLetters.Length; i++) if (opponentLetters[i]) opponentLetterCount++;
 
             if (letterCount == modeLetters.Length || opponentLetterCount == modeLetters.Length)
             {

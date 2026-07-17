@@ -13,10 +13,18 @@ namespace MultiplayerEvents
     {
         float countdownDuration = -1f, countdown = -1f;
         public bool GOSUI = false;
-        GUIStyle styleActive, styleDisabled, styleSmall, styleCenterTrick, styleAllRight, styleRightNoFont;
+        GUIStyle styleActive, styleDisabled, styleSmall, styleSmallAccent, styleCenterTrick, styleAllRight, styleRightNoFont;
         bool styleCreated = false;
         Color lastAccentColor, lastFontColor;
         public TrickCombo trickConfirmation;
+
+        // Turn-change + new-letter feedback.
+        bool hasLastState = false;
+        GameOfSkate.GOSState lastPlayerState;
+        int lastMyLetterCount = 0, lastOppLetterCount = 0;
+        int myPopLetter = -1, oppPopLetter = -1;   // index of the letter currently popping (-1 = none)
+        float myPopStart = -10f, oppPopStart = -10f;
+        const float LetterPopDuration = 0.32f;
 
 
         void Start()
@@ -56,7 +64,7 @@ namespace MultiplayerEvents
                 }
             }
 
-            if (trickConfirmation != null)
+            if (trickConfirmation != null && PlayerController.Instance != null)
             {
                 if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadLeftAction) || PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadRightAction)) confirmTrick = !confirmTrick;
                 if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
@@ -66,6 +74,49 @@ namespace MultiplayerEvents
                     confirmTrick = true;
                 }
             }
+
+            // Announce turn changes and flag freshly-activated letters for the pop animation.
+            GameOfSkate skate = em.SKATE;
+            if (skate != null && skate.running && skate.modeLetters != null)
+            {
+                if (!hasLastState || skate.playerState != lastPlayerState)
+                {
+                    // Skip the very first Waiting (game just created, nothing has happened yet).
+                    if (hasLastState || skate.playerState != GameOfSkate.GOSState.Waiting)
+                    {
+                        switch (skate.playerState)
+                        {
+                            case GameOfSkate.GOSState.Setting:   Utils.ShowNotification("Set a trick", 2f); break;
+                            case GameOfSkate.GOSState.Defending: Utils.ShowNotification("Match the trick", 2f); break;
+                            case GameOfSkate.GOSState.Waiting:   Utils.ShowNotification("Waiting", 1.5f); break;
+                        }
+                    }
+                    lastPlayerState = skate.playerState;
+                    hasLastState = true;
+                }
+
+                int mine = CountActive(skate.letters);
+                int opp = CountActive(skate.opponentLetters);
+                if (mine > lastMyLetterCount) { myPopLetter = mine - 1; myPopStart = Time.time; }
+                if (opp > lastOppLetterCount) { oppPopLetter = opp - 1; oppPopStart = Time.time; }
+                lastMyLetterCount = mine;
+                lastOppLetterCount = opp;
+            }
+            else
+            {
+                // No active game - reset so the next game re-announces from scratch.
+                hasLastState = false;
+                lastMyLetterCount = lastOppLetterCount = 0;
+                myPopLetter = oppPopLetter = -1;
+            }
+        }
+
+        static int CountActive(bool[] arr)
+        {
+            if (arr == null) return 0;
+            int n = 0;
+            for (int i = 0; i < arr.Length; i++) if (arr[i]) n++;
+            return n;
         }
 
         public void StartCountdown(float duration)
@@ -126,6 +177,10 @@ namespace MultiplayerEvents
                 styleSmall.font = Font.CreateDynamicFontFromOSFont("Corbel Bold", 24);
                 styleSmall.normal.textColor = Color.white;
 
+                // Same as styleSmall but accent-colored, for whoever's turn it is.
+                styleSmallAccent = new GUIStyle(styleSmall);
+                styleSmallAccent.normal.textColor = Main.settings.fontColorAccent;
+
                 styleCenterTrick = new GUIStyle(GUI.skin.label);
                 styleCenterTrick.alignment = TextAnchor.MiddleCenter;
                 styleCenterTrick.fontSize = 20;
@@ -152,9 +207,15 @@ namespace MultiplayerEvents
 
             if (GOSUI)
             {
+                GameOfSkate.GOSState st = Main.eventManager.SKATE.playerState;
+                bool myTurn = st != GameOfSkate.GOSState.Waiting;
+                string turnText = st == GameOfSkate.GOSState.Setting ? "SET A TRICK"
+                                : st == GameOfSkate.GOSState.Defending ? "MATCH"
+                                : "WAITING";
+
                 Rect rectTopRight = new Rect(Screen.width - 300, 90, 260, 60);
                 GUILayout.BeginArea(rectTopRight);
-                GUILayout.Label(Main.eventManager.SKATE.playerState.ToString(), styleSmall);
+                GUILayout.Label(turnText, myTurn ? styleSmallAccent : styleSmall);
                 GUILayout.EndArea();
 
                 Rect rect = new Rect(Screen.width - 300, (Screen.height / 2f) - 130, 260, 260);
@@ -162,7 +223,7 @@ namespace MultiplayerEvents
                 GUILayout.BeginArea(rect);
                 GUILayout.BeginVertical();
                 {
-                    GUILayout.Label((Main.eventManager.SKATE.playerState != GameOfSkate.GOSState.Waiting ? "• " : "") + MultiplayerManager.Instance.localPlayer.NickName, styleSmall);
+                    GUILayout.Label((myTurn ? "• " : "") + MultiplayerManager.Instance.localPlayer.NickName, myTurn ? styleSmallAccent : styleSmall);
                     GUILayout.BeginHorizontal();
                     {
                         DrawGOSLetters();
@@ -171,7 +232,7 @@ namespace MultiplayerEvents
 
                     GUILayout.Space(20);
 
-                    GUILayout.Label((Main.eventManager.SKATE.playerState == GameOfSkate.GOSState.Waiting ? "• " : "") + Main.eventManager.SKATE.opponentNickname, styleSmall);
+                    GUILayout.Label((!myTurn ? "• " : "") + Main.eventManager.SKATE.opponentNickname, !myTurn ? styleSmallAccent : styleSmall);
                     GUILayout.BeginHorizontal();
                     {
                         DrawGOSLetters(true);
@@ -181,7 +242,10 @@ namespace MultiplayerEvents
                 GUILayout.EndVertical();
                 GUILayout.EndArea();
 
-                TrickName();
+                // Only show the trick name while a trick is actually in play (setting your own
+                // or defending the opponent's). Once you're back to Waiting it should clear,
+                // rather than leave the last combo lingering on screen.
+                if (Main.eventManager.SKATE.playerState != GameOfSkate.GOSState.Waiting) TrickName();
             }
 
             if (trickConfirmation != null)
@@ -207,9 +271,36 @@ namespace MultiplayerEvents
             if (skate == null || skate.modeLetters == null) return;
 
             bool[] letters = opponent ? skate.opponentLetters : skate.letters;
+            int popIndex = opponent ? oppPopLetter : myPopLetter;
+            float popT = (Time.time - (opponent ? oppPopStart : myPopStart)) / LetterPopDuration; // 0..1 across the pop
+
             for (int i = 0; i < skate.modeLetters.Length && i < letters.Length; i++)
             {
-                GUILayout.Label(char.ToUpper(skate.modeLetters[i]) + ".", letters[i] ? styleActive : styleDisabled);
+                GUIStyle style = letters[i] ? styleActive : styleDisabled;
+                GUIContent content = new GUIContent(char.ToUpper(skate.modeLetters[i]) + ".");
+                Rect r = GUILayoutUtility.GetRect(content, style); // reserve normal-size slot (no layout shift)
+
+                if (i == popIndex && popT >= 0f && popT < 1f)
+                {
+                    // Newly-lit letter: a small, quick scale-pop (~1.3x -> 1x) with a light
+                    // brighten that settles to the accent color. ScaleAroundPivot keeps neighbors put.
+                    float ease = (1f - popT) * (1f - popT);
+                    float scale = 1f + 0.3f * ease;
+                    Color prevColor = style.normal.textColor;
+                    Matrix4x4 prevMatrix = GUI.matrix;
+
+                    Color flashStart = Color.Lerp(prevColor, Color.white, 0.5f); // brightened, not pure white
+                    style.normal.textColor = Color.Lerp(flashStart, prevColor, popT);
+                    GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), r.center);
+                    GUI.Label(r, content, style);
+
+                    GUI.matrix = prevMatrix;
+                    style.normal.textColor = prevColor;
+                }
+                else
+                {
+                    GUI.Label(r, content, style);
+                }
             }
         }
 

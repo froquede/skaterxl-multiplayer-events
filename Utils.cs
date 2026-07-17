@@ -156,6 +156,7 @@ namespace MultiplayerEvents
                 if (entry.Value && entry.Value.UserId != MultiplayerManager.Instance.localPlayer.UserId)
                 {
                     if (moddedOnly && !modded.Contains(entry.Value.UserId)) continue;
+                    if (IsBlocked(entry.Value.UserId, entry.Value.NickName)) continue; // hide blocked players
                     names.Add(entry.Value.NickName + GameConfig.PlayerIdSeparator + entry.Value.UserId);
                 }
             }
@@ -163,22 +164,70 @@ namespace MultiplayerEvents
             return names.ToArray();
         }
 
+        // --- Player block list --------------------------------------------------
+
+        // True if a player (by stable UserId or by nickname) is on the block list.
+        public static bool IsBlocked(string userId, string nick)
+        {
+            List<string> list = Main.settings != null ? Main.settings.blockedPlayers : null;
+            if (list == null) return false;
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                string bId = UserIdOf(list[i]);
+                string bNick = NickOf(list[i]);
+                if (!string.IsNullOrEmpty(bId) && !string.IsNullOrEmpty(userId) && bId == userId) return true;
+                if (!string.IsNullOrEmpty(bNick) && !string.IsNullOrEmpty(nick)
+                    && string.Equals(bNick, nick, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        // Overload for a "Nick | UserId" string.
+        public static bool IsBlocked(string playerId)
+        {
+            return IsBlocked(UserIdOf(playerId), NickOf(playerId));
+        }
+
+        public static void BlockPlayer(string nick, string userId)
+        {
+            nick = (nick ?? "").Trim();
+            userId = (userId ?? "").Trim();
+            if (nick == "" && userId == "") return;
+            if (IsBlocked(userId, nick)) return; // already blocked
+
+            Main.settings.blockedPlayers.Add(nick + GameConfig.PlayerIdSeparator + userId);
+            Main.settings.Save(Main.modEntry);
+            ShowNotification("Blocked " + (nick != "" ? nick : userId), 2f);
+        }
+
+        public static void UnblockPlayer(string entry)
+        {
+            if (Main.settings.blockedPlayers.Remove(entry)) Main.settings.Save(Main.modEntry);
+        }
+
         // --- Mod presence: advertise ourselves and detect other modded players ---
 
-        static bool presencePublished = false;
+        static string presenceRoom = null; // name of the room we last advertised in
 
         // Advertise that we run the mod via a Photon player custom property, so others can
         // tell who they can invite. Cheap and idempotent; call it while online.
         public static void PublishPresence()
         {
-            if (!isOnline()) { presencePublished = false; return; }
-            if (presencePublished && PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey(GameConfig.PresencePropertyKey)) return;
+            if (!isOnline()) { presenceRoom = null; return; }
 
-            PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable
+            Room current = PhotonNetwork.CurrentRoom;
+            string room = current != null ? current.Name : null;
+            // Publish once per room. The old flag-based guard also re-checked ContainsKey, which
+            // stays false until the server round-trips the property, so it re-sent every frame
+            // for the first several frames after joining. Gating on the room name avoids that.
+            if (room != null && room == presenceRoom) return;
+
+            PhotonNetwork.LocalPlayer.SetCustomProperties(new ExitGames.Client.Photon.Hashtable
             {
                 { GameConfig.PresencePropertyKey, Main.modEntry.Info.Version }
             });
-            presencePublished = true;
+            presenceRoom = room;
         }
 
         public static HashSet<string> GetModdedUserIds()

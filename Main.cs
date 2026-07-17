@@ -124,6 +124,7 @@ namespace MultiplayerEvents
         static List<Color> colors;
         static List<string> colorsNames;
         static string fontColor, fontColorAccent;
+        static string blockNameInput = ""; // manual "block by name" field in settings
         private static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             Style();
@@ -187,9 +188,19 @@ namespace MultiplayerEvents
                                         eventManager.SKATE.opponent = RGUI.SelectionPopup(eventManager.SKATE.opponent, players);
                                         if (players.Length == 0) GUILayout.Label("No other players with the mod detected", text);
 
-                                        if (eventManager.SKATE.opponent != "" && GUILayout.Button("Invite", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                        if (eventManager.SKATE.opponent != "")
                                         {
-                                            eventManager.InviteOpponent();
+                                            GUILayout.BeginHorizontal();
+                                            if (GUILayout.Button("Invite", GUILayout.Height(42f), GUILayout.Width(150f)))
+                                            {
+                                                eventManager.InviteOpponent();
+                                            }
+                                            if (GUILayout.Button("Block", GUILayout.Height(42f), GUILayout.Width(90f)))
+                                            {
+                                                Utils.BlockPlayer(Utils.NickOf(eventManager.SKATE.opponent), Utils.UserIdOf(eventManager.SKATE.opponent));
+                                                eventManager.SKATE.opponent = "";
+                                            }
+                                            GUILayout.EndHorizontal();
                                         }
 
                                         GUILayout.Space(12);
@@ -202,6 +213,7 @@ namespace MultiplayerEvents
                                     else
                                     {
                                         GUILayout.Label("Waiting for " + eventManager.pendingInviteNick + " to accept...", text);
+                                        GUILayout.Label("Word: " + GameConfig.NormalizeSkateWord(eventManager.agreedSkateWord), text);
                                         GUILayout.Space(8);
                                         if (GUILayout.Button("Cancel invite", GUILayout.Height(42f), GUILayout.Width(212f)))
                                         {
@@ -236,13 +248,17 @@ namespace MultiplayerEvents
                             }
                         }
 
-                        if (Utils.isAdmin())
-                        {
-                            if (GUILayout.Button("Create Race (not working yet)", GUILayout.Height(42f), GUILayout.Width(212f)))
-                            {
-                                eventManager.CreateEvent(EventType.Race, new object[] { });
-                            }
-                        }
+                        // Race is hidden for the public launch: it's incomplete (no win detection,
+                        // admin-only checkpoints) and starting it broadcasts a room-wide Running
+                        // event that resets everyone's in-progress S.K.A.T.E. games. Re-enable once
+                        // Race is finished and routed like S.K.A.T.E. (per-opponent, not userid=="").
+                        //if (Utils.isAdmin())
+                        //{
+                        //    if (GUILayout.Button("Create Race (not working yet)", GUILayout.Height(42f), GUILayout.Width(212f)))
+                        //    {
+                        //        eventManager.CreateEvent(EventType.Race, new object[] { });
+                        //    }
+                        //}
                     }
                 }
                 else
@@ -254,38 +270,89 @@ namespace MultiplayerEvents
             GUILayout.EndVertical();
             GUILayout.BeginVertical(GUILayout.Width(440));
             {
+                float lw = 190f; // label column width; keeps every control aligned down the panel
+
                 GUILayout.Label("Settings", title);
                 GUILayout.Space(2);
-                GUILayout.Label("Colors apply live; save to persist between sessions", text);
-                GUILayout.Space(8);
+                GUILayout.Label("Changes apply live; save to persist between sessions", text);
+                GUILayout.Space(10);
+
+                // --- Appearance ---
+                GUILayout.Label("Appearance", subtitle);
+                GUILayout.Space(4);
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("S.K.A.T.E. letters active color: ");
+                GUILayout.Label("Active letters color", GUILayout.Width(lw));
                 fontColorAccent = colorsNames[colorsNames.IndexOf(RGUI.SelectionPopup(fontColorAccent, colorsNames.ToArray()))];
                 settings.fontColorAccent = colors[colorsNames.IndexOf(fontColorAccent)];
                 GUILayout.EndHorizontal();
-                GUILayout.Space(8);
+                GUILayout.Space(6);
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("S.K.A.T.E. letters disabled color: ");
+                GUILayout.Label("Inactive letters color", GUILayout.Width(lw));
                 fontColor = colorsNames[colorsNames.IndexOf(RGUI.SelectionPopup(fontColor, colorsNames.ToArray()))];
                 settings.fontColor = colors[colorsNames.IndexOf(fontColor)];
                 GUILayout.EndHorizontal();
-                GUILayout.Space(8);
+
+                GUILayout.Space(12);
+
+                // --- Gameplay ---
+                GUILayout.Label("Gameplay", subtitle);
+                GUILayout.Space(4);
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Max retries while setting: ");
+                GUILayout.Label("Max retries per turn", GUILayout.Width(lw));
                 if (GUILayout.Button("-", GUILayout.Width(28))) settings.maxRetries = Mathf.Max(0, settings.maxRetries - 1);
                 GUILayout.Label(settings.maxRetries.ToString(), GUILayout.Width(24));
                 if (GUILayout.Button("+", GUILayout.Width(28))) settings.maxRetries = Mathf.Min(5, settings.maxRetries + 1);
                 GUILayout.EndHorizontal();
-                GUILayout.Space(8);
+                GUILayout.Space(6);
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("S.K.A.T.E. word (as event owner): ");
+                GUILayout.Label("S.K.A.T.E. word (host)", GUILayout.Width(lw));
                 settings.skateWord = GUILayout.TextField(settings.skateWord, GameConfig.MaxSkateWordLength, GUILayout.Width(120));
                 GUILayout.EndHorizontal();
-                GUILayout.Label("Letters only. In game: " + GameConfig.NormalizeSkateWord(settings.skateWord), text);
+                GUILayout.Label("Letters & numbers. In game: " + GameConfig.NormalizeSkateWord(settings.skateWord), text);
+
+                GUILayout.Space(12);
+
+                // --- Moderation ---
+                GUILayout.Label("Moderation", subtitle);
+                GUILayout.Space(2);
+                GUILayout.Label("Blocked players can't invite you and won't appear in event lists.", text);
+                GUILayout.Space(6);
+
+                if (settings.blockedPlayers.Count == 0)
+                {
+                    GUILayout.Label("No blocked players", text);
+                }
+                else
+                {
+                    string toRemove = null;
+                    for (int i = 0; i < settings.blockedPlayers.Count; i++)
+                    {
+                        string entry = settings.blockedPlayers[i];
+                        string nick = Utils.NickOf(entry);
+                        string label = nick != "" ? nick : Utils.UserIdOf(entry);
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label(label, GUILayout.Width(lw));
+                        if (GUILayout.Button("Unblock", GUILayout.Width(90f))) toRemove = entry;
+                        GUILayout.EndHorizontal();
+                    }
+                    if (toRemove != null) Utils.UnblockPlayer(toRemove); // deferred so we don't mutate mid-iteration
+                }
+                GUILayout.Space(6);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Block by name", GUILayout.Width(lw));
+                blockNameInput = GUILayout.TextField(blockNameInput, 32, GUILayout.Width(120));
+                if (GUILayout.Button("Block", GUILayout.Width(70f)))
+                {
+                    Utils.BlockPlayer(blockNameInput, "");
+                    blockNameInput = "";
+                }
+                GUILayout.EndHorizontal();
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
