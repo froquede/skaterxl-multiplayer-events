@@ -1,0 +1,167 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{DB793960-6BE3-426D-BE11-6071BDA11E87}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>MultiplayerEvents</RootNamespace>
+    <AssemblyName>MultiplayerEvents</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Folder holding the Skater XL assemblies to compile against. Defaults to the committed
+         stripped reference assemblies in libs/ (public API only, no game/engine implementation),
+         so the project builds anywhere - clone and go - with no game install or machine paths.
+         Override with /p:GameManaged=<path> to compile against a real install if you prefer. -->
+    <GameManaged Condition=" '$(GameManaged)' == '' ">$(MSBuildProjectDirectory)\libs</GameManaged>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(GameManaged)\UnityModManager\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameManaged)\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="BFSUtilities">
+      <HintPath>$(GameManaged)\BFSUtilities.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Cinemachine">
+      <HintPath>$(GameManaged)\Cinemachine.dll</HintPath>
+    </Reference>
+    <Reference Include="Photon3Unity3D">
+      <HintPath>$(GameManaged)\Photon3Unity3D.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PhotonRealtime">
+      <HintPath>$(GameManaged)\PhotonRealtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PhotonUnityNetworking">
+      <HintPath>$(GameManaged)\PhotonUnityNetworking.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Rewired_Core">
+      <HintPath>$(GameManaged)\Rewired_Core.dll</HintPath>
+    </Reference>
+    <Reference Include="SkaterXL.Core">
+      <HintPath>$(GameManaged)\SkaterXL.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="SkaterXL.Multiplayer">
+      <HintPath>$(GameManaged)\SkaterXL.Multiplayer.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="SkaterXL.TrickDetection">
+      <HintPath>$(GameManaged)\SkaterXL.TrickDetection.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameManaged)\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GameManaged)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(GameManaged)\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityModManager">
+      <HintPath>$(GameManaged)\UnityModManager\UnityModManager.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CheckPoint.cs" />
+    <Compile Include="CheckpointTrigger.cs" />
+    <Compile Include="Cursor.cs" />
+    <Compile Include="Enums.cs" />
+    <Compile Include="Event.cs" />
+    <Compile Include="GameOfSkate.cs" />
+    <Compile Include="Main.cs" />
+    <Compile Include="MultiplayerEventManager.cs" />
+    <Compile Include="Notification.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+    <Compile Include="Race.cs" />
+    <Compile Include="rgui\Button.cs" />
+    <Compile Include="rgui\Field.cs" />
+    <Compile Include="rgui\Field\BoolField.cs" />
+    <Compile Include="rgui\Field\EnumField.cs" />
+    <Compile Include="rgui\Field\ListField.cs" />
+    <Compile Include="rgui\Field\StandardField.cs" />
+    <Compile Include="rgui\MixMax.cs" />
+    <Compile Include="rgui\Popup.cs" />
+    <Compile Include="rgui\Scope\BackgroundColorScope.cs" />
+    <Compile Include="rgui\Scope\ColorScope.cs" />
+    <Compile Include="rgui\Scope\EnabledScope.cs" />
+    <Compile Include="rgui\Scope\IndentScope.cs" />
+    <Compile Include="rgui\Slider.cs" />
+    <Compile Include="rgui\Utilities\FocusChecker.cs" />
+    <Compile Include="rgui\Utilities\IDoGUIWindow.cs" />
+    <Compile Include="rgui\Utilities\RapidGUIBehaviour.cs" />
+    <Compile Include="rgui\Utilities\RGUIStyle.cs" />
+    <Compile Include="rgui\Utilities\RGUIUtility.cs" />
+    <Compile Include="rgui\Utilities\TypeUtility.cs" />
+    <Compile Include="rgui\Utilities\TypeUtilityMemberInfo.cs" />
+    <Compile Include="rgui\Utilities\UnparsedStr.cs" />
+    <Compile Include="rgui\Utilities\WarningLabelNoStyle.cs" />
+    <Compile Include="rgui\Utilities\WindowInvoker.cs" />
+    <Compile Include="Settings.cs" />
+    <Compile Include="Tick.cs" />
+    <Compile Include="Utils.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

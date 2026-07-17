@@ -1,0 +1,53 @@
+name: Build & Release
+
+# Builds the mod against the stripped reference assemblies in libs/ (no game code needed on the
+# runner) and packages an installable UnityModManager zip. Pushing a tag like v0.2.0 also attaches
+# the zip to a GitHub Release. Can also be run manually from the Actions tab.
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the Release on a tag
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build (Release, against libs/ reference assemblies)
+        run: msbuild MultiplayerEvents.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Package installable mod zip
+        id: package
+        shell: pwsh
+        run: |
+          $version = (Get-Content Info.json -Raw | ConvertFrom-Json).Version
+          # UnityModManager expects a top-level folder named after the mod, files inside.
+          $stage = "MultiplayerEvents"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "bin\Release\MultiplayerEvents.dll" $stage
+          Copy-Item "Info.json" $stage
+          $zip = "MultiplayerEvents_v$version.zip"
+          Compress-Archive -Path $stage -DestinationPath $zip -Force
+          "zip=$zip"         >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaged $zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MultiplayerEvents_v${{ steps.package.outputs.version }}
+          path: ${{ steps.package.outputs.zip }}
+
+      - name: Attach zip to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.zip }}
+          generate_release_notes: true
