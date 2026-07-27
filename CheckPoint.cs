@@ -78,8 +78,8 @@ namespace MultiplayerEvents
             }
             if (beacon)
             {
-                beacon.transform.position = mid + new Vector3(0f, 2.5f, 0f); // rises from the gate
-                beacon.transform.localScale = new Vector3(0.15f, 5f, 0.15f);  // thin tall pillar
+                beacon.transform.position = mid + new Vector3(0f, 20f, 0f);   // base at the gate, rises high
+                beacon.transform.localScale = new Vector3(0.25f, 40f, 0.25f); // thin, very tall pillar
                 beacon.transform.rotation = Quaternion.identity;
             }
         }
