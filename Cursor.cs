@@ -26,13 +26,8 @@ namespace MultiplayerEvents
             Destroy(sphere.GetComponent<CapsuleCollider>());
 
             Material material = new Material(Shader.Find("HDRP/Lit"));
+            Utils.ApplyHDRPTransparency(material, new Color(0f, 0f, 1f, 0.25f));
 
-            Color transparentGreen = new Color(0f, 0f, 1f, 0.2f);
-            material.SetColor("_BaseColor", transparentGreen);
-
-            material.SetFloat("_SurfaceType", 1);
-            material.SetFloat("_BlendMode", 0);
-            
             renderer = sphere.GetComponent<MeshRenderer>();
             renderer.material = material;
 
