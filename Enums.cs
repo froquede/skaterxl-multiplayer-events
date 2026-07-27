@@ -103,6 +103,9 @@ namespace MultiplayerEvents
         public const int Spectate = 69;          // hold DpadRight - spectate the opponent
         public const float HoldSeconds = 0.6f;   // how long to hold before it fires
 
+        public const int LT = 8;                 // left trigger axis  (checkpoint cursor: zoom out)
+        public const int RT = 9;                 // right trigger axis (checkpoint cursor: zoom in)
+
         public const string Confirm = "A";
         public const string Cancel = "B";
     }
