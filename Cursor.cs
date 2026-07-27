@@ -15,6 +15,9 @@ namespace MultiplayerEvents
         public MeshRenderer renderer;
         public CinemachineVirtualCamera camera;
         public CheckPoint checkPoint;
+        // Placement-camera orbit (right stick) + zoom (triggers). Defaults reproduce the old
+        // fixed (0,4,-4) view: pitch 45, yaw 0, distance ~5.66.
+        float camYaw = 0f, camPitch = 45f, camDist = 5.66f;
 
         void Start()
         {
@@ -26,13 +29,8 @@ namespace MultiplayerEvents
             Destroy(sphere.GetComponent<CapsuleCollider>());
 
             Material material = new Material(Shader.Find("HDRP/Lit"));
+            Utils.ApplyGateColor(material, new Color(0f, 0.4f, 1f));
 
-            Color transparentGreen = new Color(0f, 0f, 1f, 0.2f);
-            material.SetColor("_BaseColor", transparentGreen);
-
-            material.SetFloat("_SurfaceType", 1);
-            material.SetFloat("_BlendMode", 0);
-            
             renderer = sphere.GetComponent<MeshRenderer>();
             renderer.material = material;
 
@@ -52,16 +50,44 @@ namespace MultiplayerEvents
 
                 if (!renderer.enabled) renderer.enabled = true;
 
+                // Zoom the placement camera with the triggers (RT in, LT out).
+                float rt = PlayerController.Instance.inputController.player.GetAxis(InputBinding.RT);
+                float lt = PlayerController.Instance.inputController.player.GetAxis(InputBinding.LT);
+                camDist = Mathf.Clamp(camDist + (lt - rt) * 12f * Time.deltaTime, 2f, 20f);
+
+                // Move the cursor relative to where the camera is looking (so "up" is always away
+                // from the camera, even after orbiting). Speed scales with zoom for fine placement.
+                float lsx = PlayerController.Instance.inputController.LeftStick.rawInput.pos.x;
+                float lsy = PlayerController.Instance.inputController.LeftStick.rawInput.pos.y;
+                Vector3 move = Quaternion.Euler(0f, camYaw, 0f) * new Vector3(lsx, 0f, lsy);
+                // Chase a point just ahead of the CURRENT cursor position (bounded pursuit, so speed
+                // matches the original) - not the accumulating lastHitPoint, which compounded velocity.
+                Vector3 basePos = transform.position;
+                Vector3 candidate = basePos + move * (camDist / 5.66f) / 2.5f;
+
+                // Snap to ground near the current height only: start just above the cursor and reach
+                // a short way down. This follows slopes smoothly, ignores anything high overhead (no
+                // snapping up to a ceiling/far collider), and when there's no ground close below - an
+                // edge/gap - keeps the height and glides over instead of dropping into the void.
                 RaycastHit hit;
-                if (Physics.Raycast(transform.position + new Vector3(0, 1f, 0), Vector3.down, out hit, Mathf.Infinity, LayerUtility.GroundMask))
+                if (Physics.Raycast(new Vector3(candidate.x, basePos.y + 3f, candidate.z), Vector3.down, out hit, 11f, LayerUtility.GroundMask))
                 {
                     lastHitPoint = hit.point;
                 }
-
-                lastHitPoint += new Vector3(PlayerController.Instance.inputController.LeftStick.rawInput.pos.x / 4f, 0f, PlayerController.Instance.inputController.LeftStick.rawInput.pos.y / 4f);
+                else
+                {
+                    lastHitPoint = new Vector3(candidate.x, basePos.y, candidate.z); // glide over the gap
+                }
 
                 transform.position = Vector3.Lerp(transform.position, lastHitPoint, Time.deltaTime * 12f);
-                camera.transform.position = transform.position + new Vector3(0, 4f, -4f);
+
+                // Orbit the placement camera around the cursor with the right stick (X = yaw, Y = pitch).
+                float rsx = PlayerController.Instance.inputController.RightStick.rawInput.pos.x;
+                float rsy = PlayerController.Instance.inputController.RightStick.rawInput.pos.y;
+                camYaw += rsx * 120f * Time.deltaTime;
+                camPitch = Mathf.Clamp(camPitch - rsy * 60f * Time.deltaTime, 10f, 80f);
+                Vector3 offset = Quaternion.Euler(camPitch, camYaw, 0f) * new Vector3(0f, 0f, -camDist);
+                camera.transform.position = transform.position + offset;
                 camera.transform.LookAt(transform.position);
 
                 if (temporaryPoint != null) temporaryPoint.transform.position = transform.position;
@@ -73,7 +99,7 @@ namespace MultiplayerEvents
 
                 if (PlayerController.Instance.inputController.player.GetButton(InputBinding.Cancel))
                 {
-                    Utils.DisableCursor();
+                    ClearPlacement(); // exit + drop the half-placed preview gate
                 }
             }
             else if (renderer.enabled) renderer.enabled = false;
@@ -108,7 +134,7 @@ namespace MultiplayerEvents
                 pointB.transform.position = transform.position;
                 checkPoint.pointB = pointB;
 
-                Main.eventManager.race.AddNewCheckPoint(checkPoint);
+                if (Main.eventManager.race != null) Main.eventManager.race.AddNewCheckPoint(checkPoint);
             }
         }
 
@@ -124,6 +150,21 @@ namespace MultiplayerEvents
                 pointA = pointB = temporaryPoint = null;
                 Utils.Log("Destroyed");
             }
+        }
+
+        // Destroy any in-progress placement objects and stop the cursor. Safe to call anytime -
+        // used by "Clear Checkpoints" and on race teardown so nothing is left in the scene.
+        public void ClearPlacement()
+        {
+            if (active) Utils.DisableCursor(); // restores the camera + sets active = false
+            markDestroy = false;
+            if (temporaryPoint != null) Destroy(temporaryPoint.gameObject);
+            if (checkPoint != null) Destroy(checkPoint.gameObject);
+            if (pointA != null) Destroy(pointA.gameObject);
+            if (pointB != null) Destroy(pointB.gameObject);
+            checkPoint = null;
+            pointA = pointB = temporaryPoint = null;
+            if (renderer != null) renderer.enabled = false;
         }
     }
 }

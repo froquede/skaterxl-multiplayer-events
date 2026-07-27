@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace MultiplayerEvents
 {
@@ -38,6 +39,20 @@ namespace MultiplayerEvents
         public int agreedRetries = GameConfig.DefaultRetries; // redo allowance both players use; owner-authoritative, synced via the invite
         public string lastSkateOpponent = ""; // "Nick | UserId" for the rematch button
 
+        // --- Race lobby (preview). All race traffic is self-scoped by race.raceId. ---
+        public bool raceLobbyOpen = false;                     // host: currently accepting joins
+        public List<string> raceJoined = new List<string>();   // host: UserIds that accepted (excludes host)
+        public bool hasIncomingRaceInvite = false;             // joiner: a lobby prompt is up
+        public string incomingRaceFrom = "";                   // "Nick | UserId" of the host
+        public string incomingRaceId = "";
+        public int incomingRaceLaps = GameConfig.DefaultRaceLaps;
+        public float incomingRaceExpiry = 0f;
+        // The last course we hosted (A,B point pairs) + laps, so the admin can rematch/reuse it.
+        public List<Vector3> lastRaceCheckpoints = new List<Vector3>();
+        public int lastRaceLaps = GameConfig.DefaultRaceLaps;
+
+        string myUserId => MultiplayerManager.Instance.localPlayer.UserId;
+
         public MultiplayerEventManager()
         {
             PhotonNetwork.AddCallbackTarget(this);
@@ -53,6 +68,14 @@ namespace MultiplayerEvents
                 return;
             }
 
+            if (photonEvent.Code == NetCode.RaceSession)
+            {
+                object[] rdata = photonEvent.CustomData as object[];
+                if (rdata == null || rdata.Length < 2) return;
+                HandleRaceLobby(rdata); // lobby/lifecycle keys only; Race handles progress/finish
+                return;
+            }
+
             if (photonEvent.Code == NetCode.EventLifecycle)
             {
 
@@ -65,6 +88,10 @@ namespace MultiplayerEvents
                 EventState state = (EventState)(int)data[1];
                 EventType eventType = (EventType)(int)data[2];
                 string userid = (string)data[3];
+
+                // Race never uses the room-wide lifecycle - it has its own raceId-scoped channel.
+                // Ignore any Race lifecycle so it can't create/tear down events on non-participants.
+                if (eventType == EventType.Race) return;
 
                 Utils.Log("Event " + photonEvent.Code + " received as client, event " + eventType + " state " + state + " userId: " + userid + " my id: " + MultiplayerManager.Instance.localPlayer.UserId);
 
@@ -112,6 +139,8 @@ namespace MultiplayerEvents
             SKATE = null;
             race = null;
             multiplayerEvent = null;
+            raceLobbyOpen = false;
+            raceJoined.Clear();
         }
 
         public void CreateEvent(EventType eventType, object[] data)
@@ -131,6 +160,7 @@ namespace MultiplayerEvents
             {
                 race = new Race();
                 multiplayerEvent = race;
+                race.SetupHost(Main.settings.raceLaps); // host: fresh raceId + lap count
             }
 
             if (eventType == EventType.SKATE)
@@ -279,6 +309,204 @@ namespace MultiplayerEvents
             InviteOpponent();
         }
 
+        // --- Race lobby (preview) ----------------------------------------------
+
+        void RaiseRace(object[] content)
+        {
+            PhotonNetwork.RaiseEvent(NetCode.RaceSession, content,
+                new RaiseEventOptions { Receivers = ReceiverGroup.Others }, SendOptions.SendReliable);
+        }
+
+        // Snap out of the checkpoint placement view (discarding any half-placed gate). Race actions
+        // call this so e.g. starting a race or opening the lobby also leaves placement mode.
+        void ExitPlacement()
+        {
+            if (Main.cursor != null && Main.cursor.active) Main.cursor.ClearPlacement();
+        }
+
+        // Host: announce the lobby to the room and start collecting joins.
+        public void OpenRaceLobby()
+        {
+            if (race == null || !isEventOwner) return;
+            ExitPlacement();
+            raceLobbyOpen = true;
+            raceJoined.Clear();
+            RaiseRace(new object[] { RaceMessage.Open, race.raceId, Utils.GetPlayerID(), race.laps });
+            Utils.ShowNotification("Race lobby open", 2f);
+        }
+
+        // Host: withdraw the lobby (before starting).
+        public void CancelRaceLobby()
+        {
+            if (race == null) return;
+            ExitPlacement();
+            raceLobbyOpen = false;
+            RaiseRace(new object[] { RaceMessage.Cancel, race.raceId });
+            Utils.ShowNotification("Lobby closed", 2f);
+        }
+
+        // Host: start the race for the host + everyone who joined.
+        public void StartRace()
+        {
+            if (race == null || !isEventOwner || race.checkpoints.Count == 0) return;
+            ExitPlacement();
+            raceLobbyOpen = false;
+            SaveCourse(); // remember this course so it can be re-raced with Rematch
+            int startTime = PhotonNetwork.ServerTimestamp + (int)(GameConfig.RaceStartCountdownSeconds * 1000f);
+            race.StartAsHost(raceJoined, startTime);
+        }
+
+        void SaveCourse()
+        {
+            lastRaceCheckpoints = new List<Vector3>();
+            for (int i = 0; i < race.checkpoints.Count; i++)
+            {
+                lastRaceCheckpoints.Add(race.checkpoints[i].pointA.transform.position);
+                lastRaceCheckpoints.Add(race.checkpoints[i].pointB.transform.position);
+            }
+            lastRaceLaps = race.laps;
+        }
+
+        // Host: recreate the last course and open a fresh lobby - a one-click way to run it again.
+        public void RematchRace()
+        {
+            if (!Utils.isOnline() || multiplayerEvent != null || lastRaceCheckpoints.Count == 0) return;
+            CreateEvent(EventType.Race, new object[] { }); // become host again, fresh raceId
+            race.laps = lastRaceLaps;
+            race.BuildCheckpoints(lastRaceCheckpoints);
+            OpenRaceLobby();
+        }
+
+        // Host: back out of race setup. If a lobby was open, tell joiners it's gone so their
+        // join prompt / "waiting for start" doesn't hang until timeout.
+        public void AbortRaceSetup()
+        {
+            if (raceLobbyOpen && race != null) RaiseRace(new object[] { RaceMessage.Cancel, race.raceId });
+            Disable(true);
+            Reset();
+        }
+
+        // Participant: quit the race just for yourself (drops you from everyone's ranking).
+        public void LeaveRace()
+        {
+            if (race == null) return;
+            RaiseRace(new object[] { RaceMessage.Leave, race.raceId, myUserId });
+            Utils.ShowNotification("Left the race", 2f);
+            Disable(true);
+            Reset();
+        }
+
+        // Host or participant: tear the race down for everyone in it.
+        public void StopRace()
+        {
+            if (race == null) return;
+            RaiseRace(new object[] { RaceMessage.Stop, race.raceId });
+            Utils.ShowNotification("Race ended", 2f);
+            Disable(true);
+            Reset();
+        }
+
+        // Host: wipe all placed checkpoints (and any in-progress placement) to start over.
+        public void ClearRaceCheckpoints()
+        {
+            if (Main.cursor != null) Main.cursor.ClearPlacement();
+            if (race != null) race.DestroyCheckpoints();
+        }
+
+        // Joiner: accept the lobby prompt. We create our race only once Start arrives.
+        public void JoinIncomingRace()
+        {
+            if (!hasIncomingRaceInvite) return;
+            RaiseRace(new object[] { RaceMessage.Join, incomingRaceId, Utils.GetPlayerID() });
+            Utils.ShowNotification("Joined - waiting for start", 2.5f);
+            hasIncomingRaceInvite = false;
+        }
+
+        public void DeclineIncomingRace()
+        {
+            hasIncomingRaceInvite = false;
+        }
+
+        // Lobby + lifecycle keys (Open/Join/Cancel/Start/Stop). Progress/Finish are handled by Race.
+        void HandleRaceLobby(object[] data)
+        {
+            string key = data[0] as string;
+            string raceId = data[1] as string;
+            if (key == null || raceId == null) return;
+
+            if (key == RaceMessage.Open)
+            {
+                string hostPlayerId = data.Length > 2 ? data[2] as string : null;
+                int laps = data.Length > 3 && data[3] is int ? (int)data[3] : GameConfig.DefaultRaceLaps;
+                if (hostPlayerId == null || Utils.IsBlocked(hostPlayerId)) return;
+
+                // Busy -> the prompt simply doesn't appear (in a running event, mid-invite, or
+                // already have any event/prompt in flight).
+                bool busy = (multiplayerEvent != null && multiplayerEvent.state == EventState.Running)
+                    || race != null || SKATE != null || hasIncomingInvite || hasIncomingRaceInvite || pendingInviteTo != "";
+                if (busy) return;
+
+                hasIncomingRaceInvite = true;
+                incomingRaceFrom = hostPlayerId;
+                incomingRaceId = raceId;
+                incomingRaceLaps = laps;
+                incomingRaceExpiry = UnityEngine.Time.time + GameConfig.RaceLobbyTimeoutSeconds;
+                Utils.ShowNotification(Utils.NickOf(hostPlayerId) + " opened a Race", 3f);
+            }
+            else if (key == RaceMessage.Join)
+            {
+                if (race == null || !isEventOwner || raceId != race.raceId || !raceLobbyOpen) return;
+                string joinerPlayerId = data.Length > 2 ? data[2] as string : null;
+                if (joinerPlayerId == null || Utils.IsBlocked(joinerPlayerId)) return;
+                string joinerId = Utils.UserIdOf(joinerPlayerId);
+                if (joinerId != "" && !raceJoined.Contains(joinerId))
+                {
+                    raceJoined.Add(joinerId);
+                    Utils.ShowNotification(Utils.NickOf(joinerPlayerId) + " joined", 2f);
+                }
+            }
+            else if (key == RaceMessage.Cancel)
+            {
+                if (hasIncomingRaceInvite && raceId == incomingRaceId)
+                {
+                    hasIncomingRaceInvite = false;
+                    Utils.ShowNotification("Race cancelled", 2f);
+                }
+            }
+            else if (key == RaceMessage.Start)
+            {
+                // Already busy (host started locally, or we're in another event) -> ignore, never
+                // overwrite. A legit joiner has no event here because they couldn't join while busy.
+                if (race != null || SKATE != null) return;
+                if (data.Length < 6) return; // malformed/short Start - need laps, startTime, csv, cpCount
+                string participantsCsv = data.Length > 4 ? data[4] as string ?? "" : "";
+                bool imIn = participantsCsv.Split(new[] { GameConfig.RaceParticipantSeparator }, StringSplitOptions.RemoveEmptyEntries).Contains(myUserId);
+                if (!imIn) return; // not a participant
+
+                int laps = (int)data[2];
+                int startTime = (int)data[3];
+                int cpCount = (int)data[5];
+                List<Vector3> pts = new List<Vector3>();
+                for (int i = 0; i < cpCount * 2 && 6 + i < data.Length; i++) pts.Add((Vector3)data[6 + i]);
+
+                race = new Race();
+                multiplayerEvent = race;
+                eventType = EventType.Race;
+                isEventOwner = false;
+                hasIncomingRaceInvite = false;
+                race.StartAsParticipant(raceId, laps, participantsCsv, startTime, pts);
+            }
+            else if (key == RaceMessage.Stop)
+            {
+                if (race != null && raceId == race.raceId)
+                {
+                    Utils.ShowNotification("Race ended", 2f);
+                    Disable(true);
+                    Reset();
+                }
+            }
+        }
+
         // Records this invite attempt and returns false if the sender is over the rate limit
         // (InviteMaxPerWindow within InviteWindowSeconds). Only counts attempts that get through
         // here, so a dropped invite doesn't extend the window - the limit stays a true N-per-window.
@@ -381,6 +609,17 @@ namespace MultiplayerEvents
             if (hasIncomingInvite && Utils.UserIdOf(incomingInviteFrom) == otherPlayer.UserId)
             {
                 hasIncomingInvite = false;
+            }
+            // Drop a race lobby prompt if its host left.
+            if (hasIncomingRaceInvite && Utils.UserIdOf(incomingRaceFrom) == otherPlayer.UserId)
+            {
+                hasIncomingRaceInvite = false;
+            }
+            // Remove a leaver from an active race (lobby list + ranking).
+            if (race != null)
+            {
+                raceJoined.Remove(otherPlayer.UserId);
+                race.RemoveParticipant(otherPlayer.UserId);
             }
 
             if (multiplayerEvent == null) return;

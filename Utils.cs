@@ -6,6 +6,7 @@ using Photon.Realtime;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityModManagerNet;
 
@@ -80,6 +81,34 @@ namespace MultiplayerEvents
             n.ShowNotification(text.ToString(), duration);
         }
 
+        // A short UI sound to make a turn change audible. Uses the game's own sounds:
+        // a "major" cue when it's your move, a softer "minor" cue when you're waiting.
+        public static void PlayTurnSound(bool yourTurn)
+        {
+            try
+            {
+                if (UISounds.Instance == null) return;
+                if (yourTurn) UISounds.Instance.PlayOneShotSelectMajor();
+                else UISounds.Instance.PlayOneShotSelectMinor();
+            }
+            catch { }
+        }
+
+        // Color an HDRP/Lit material as an OPAQUE, softly-glowing marker. Skater XL's build strips
+        // HDRP/Lit's transparent pass (a transparent material renders only its shadow, no surface),
+        // so we stay opaque - and lean on small/low geometry to avoid blocking the view. Emission
+        // is part of the standard lit pass (not a stripped variant), so it renders reliably and
+        // keeps a low marker readable even in shadow.
+        public static void ApplyGateColor(Material mat, Color color)
+        {
+            Color opaque = new Color(color.r, color.g, color.b, 1f);
+            mat.SetColor("_BaseColor", opaque);
+            mat.SetColor("_Color", opaque);
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissiveColor", new Color(color.r, color.g, color.b) * 1.5f);
+            mat.SetFloat("_EmissiveExposureWeight", 0f); // emission independent of scene exposure
+        }
+
         public static CheckPoint AddCheckPoint()
         {
             GameObject checkpoint = new GameObject("MECheckpoint");
@@ -132,8 +161,8 @@ namespace MultiplayerEvents
 
             GameObject fallbackCamera = PlayerController.Instance.skaterController.transform.parent.parent.Find("Fallback Camera").gameObject;
             fallbackCamera.GetComponent<CinemachineFallbackCamera>().enabled = true;
-
-            Main.eventManager.race.SyncCheckPoints();
+            // Checkpoints stay local to the host during placement; they're sent to participants
+            // only when the race starts (Race.StartAsHost), so nothing here to broadcast.
         }
 
         public static void DisableCameraCollider(bool enabled)
@@ -260,34 +289,81 @@ namespace MultiplayerEvents
             return parts.Length > 1 ? parts[1] : "";
         }
 
+        // The trick this player is currently setting/defending, as a readable name.
         public static string ComboName()
         {
-            string fullName = "";
-            if (Main.eventManager.SKATE != null && Main.eventManager.SKATE.actualTrickCombo != null)
+            if (Main.eventManager.SKATE == null) return "";
+            return ComboName(Main.eventManager.SKATE.actualTrickCombo);
+        }
+
+        // Human-readable name for a combo, normalized the same way matching is:
+        // small manuals are dropped and the "to Fakie"/stance quirks are handled so
+        // the connector never doubles up (e.g. the old "to to Fakie" bug).
+        public static string ComboName(TrickCombo combo)
+        {
+            List<string> tricks = NormalizedTrickNames(combo);
+            if (tricks.Count == 0) return "";
+
+            StringBuilder sb = new StringBuilder();
+            string last = "";
+            for (int i = 0; i < tricks.Count; i++)
             {
+                string name = tricks[i];
 
-                string lastTrick = "";
-                for (int i = 0; i < Main.eventManager.SKATE.actualTrickCombo.Tricks.Count; i++)
+                // In a multi-trick combo a standalone pop collapses to its stance:
+                // "Fakie Ollie" -> "Fakie", "Switch Ollie" -> "Switch", "Ollie" -> "" (implied).
+                if (tricks.Count > 1)
                 {
-                    Trick t = Main.eventManager.SKATE.actualTrickCombo.Tricks[i];
-
-                    if (i >= 1 && t.ToString() != "Ollie" && lastTrick != "" && lastTrick != "Nollie" && lastTrick != "Fakie" && lastTrick != "Switch") fullName += "to ";
-
-                    string trickName = t.ToString();
-                    if (Main.eventManager.SKATE.actualTrickCombo.Tricks.Count > 1)
-                    {
-                        if (trickName == "Fakie Ollie") trickName = "Fakie";
-                        if (trickName == "Switch Ollie") trickName = "Switch";
-                        if (trickName == "Ollie") trickName = "";
-                    }
-
-                    fullName += trickName + " ";
-
-                    lastTrick = trickName;
+                    if (name == "Fakie Ollie") name = "Fakie";
+                    else if (name == "Switch Ollie") name = "Switch";
+                    else if (name == "Ollie") name = "";
                 }
+                if (name == "") continue; // dropped Ollie: no token and no connector
+
+                // Join tricks with "to", except: the first token, right after a bare
+                // stance (Fakie/Switch/Nollie), or when the token already carries its
+                // own "to" (e.g. "to Fakie") - that last guard fixes the doubled "to".
+                bool afterStance = last == "Fakie" || last == "Switch" || last == "Nollie";
+                bool startsWithTo = name.StartsWith("to ");
+                if (sb.Length > 0 && !afterStance && !startsWithTo) sb.Append("to ");
+
+                sb.Append(name).Append(' ');
+                last = name;
             }
 
-            return fullName;
+            return sb.ToString().TrimEnd();
+        }
+
+        // Trick names for a combo with incidental (short) manuals removed, so an
+        // intentional trick popped right after a tiny manual matches the clean trick.
+        // Used for both display and set/defense comparison so they always agree.
+        public static List<string> NormalizedTrickNames(TrickCombo combo)
+        {
+            List<string> names = new List<string>();
+            if (combo == null || combo.Tricks == null) return names;
+
+            float manualMax = Main.settings != null ? Main.settings.smallManualMaxSeconds : GameConfig.SmallManualMaxSeconds;
+
+            foreach (Trick t in combo.Tricks)
+            {
+                Manual m = t as Manual;
+                if (m != null && m.duration < manualMax) continue; // ignore small manual
+                string s = t.ToString();
+                if (!string.IsNullOrEmpty(s)) names.Add(s); // AirTrick.ToString() can be null
+            }
+            return names;
+        }
+
+        // The network controller for a given UserId, or null if not in the room.
+        public static NetworkPlayerController GetNetworkPlayer(string userId)
+        {
+            if (string.IsNullOrEmpty(userId) || !isOnline()) return null;
+
+            foreach (KeyValuePair<int, NetworkPlayerController> entry in MultiplayerManager.Instance.networkPlayers)
+            {
+                if (entry.Value != null && entry.Value.UserId == userId) return entry.Value;
+            }
+            return null;
         }
     }
 }

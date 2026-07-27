@@ -2,7 +2,7 @@
   "Id": "MultiplayerEvents",
   "DisplayName": "Multiplayer Events",
   "Author": "froquede",
-  "Version": "0.2.0",
+  "Version": "0.3.0",
   "ManagerVersion": "0.22.5.0",
   "Requirements": [],
   "LoadAfter": [],

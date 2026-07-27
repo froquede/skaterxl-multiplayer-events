@@ -44,6 +44,24 @@ namespace MultiplayerEvents
         public const byte RaceCheckpointSync = 67;
         public const byte Invitation = 68;             // invite/accept/decline/cancel handshake
         public const byte SkateGame = 70;              // in-match S.K.A.T.E. messages
+        public const byte RaceSession = 71;            // race lobby + in-race telemetry (self-scoped by raceId)
+    }
+
+    /// <summary>
+    /// Keys for the payload sent over <see cref="NetCode.RaceSession"/>. Every message
+    /// carries a raceId at index 1; recipients that aren't part of that race ignore it,
+    /// so a race never touches non-participants (no overwrite, no stray objects).
+    /// </summary>
+    static class RaceMessage
+    {
+        public const string Open = "raceOpen";      // host -> room: lobby open   [key, raceId, hostPlayerId, laps]
+        public const string Join = "raceJoin";      // player -> host: I'm in      [key, raceId, joinerPlayerId]
+        public const string Cancel = "raceCancel";  // host -> room: lobby closed  [key, raceId]
+        public const string Start = "raceStart";    // host -> room: go            [key, raceId, laps, startServerTime, participantsCsv, cpCount, A0,B0,A1,B1...]
+        public const string Progress = "raceProg";  // racer -> race: checkpoint   [key, raceId, userId, lapsDone, nextCp, serverTime]
+        public const string Finish = "raceFin";     // racer -> race: finished     [key, raceId, userId, totalMs]
+        public const string Leave = "raceLeave";    // racer -> race: I quit        [key, raceId, userId]
+        public const string Stop = "raceStop";      // host -> race: teardown      [key, raceId]
     }
 
     /// <summary>
@@ -68,11 +86,27 @@ namespace MultiplayerEvents
         public const string EventEnd = "eventEnd";
     }
 
-    /// <summary>Rewired action ids/names read from the player input.</summary>
+    /// <summary>
+    /// Rewired action ids/names read from the player input. Per RewiredConsts.Action:
+    /// Up=67, Down=68, Right=69, Left=70. (The two confirm-toggle ids below are named
+    /// left/right but are really right/left; it only toggles two options, so harmless.)
+    /// </summary>
     static class InputBinding
     {
         public const int DpadLeftAction = 69;   // toggle confirm option
         public const int DpadRightAction = 70;  // toggle confirm option
+
+        // Pass-turn / spectate are HELD on Dpad Left/Right. Dpad Up/Down are the game's
+        // respawn / set-respawn (Up teleports) and fire on the press edge, so they're
+        // off-limits; Left/Right only pan the camera. Held (not tapped) so a stray pan
+        // can't trigger them.
+        public const int PassTurn = 70;          // hold DpadLeft  - pass your setting turn
+        public const int Spectate = 69;          // hold DpadRight - spectate the opponent
+        public const float HoldSeconds = 0.6f;   // how long to hold before it fires
+
+        public const int LT = 8;                 // left trigger axis  (checkpoint cursor: zoom out)
+        public const int RT = 9;                 // right trigger axis (checkpoint cursor: zoom in)
+
         public const string Confirm = "A";
         public const string Cancel = "B";
     }
@@ -92,6 +126,30 @@ namespace MultiplayerEvents
         public const string PresencePropertyKey = "ME_ver"; // Photon custom prop advertising the mod
         public const string DefaultSkateWord = "SKATE";
         public const int MaxSkateWordLength = 8;            // keeps the HUD readable
+
+        // --- Race (preview) ---
+        public const int DefaultRaceLaps = 1;
+        public const int MaxRaceLaps = 10;
+        public const float RaceStartCountdownSeconds = 3f;  // between "Start" and the race clock starting (3-2-1-GO)
+        public const float RaceLobbyTimeoutSeconds = 45f;   // how long a join prompt stays up
+        public const string RaceParticipantSeparator = ","; // UserIds are GUID-ish, comma-safe
+
+        // A manual shorter than this (seconds) is treated as incidental and stripped from
+        // the trick used for setting/matching, so a clean trick popped right after a tiny
+        // manual still registers as that clean trick. Tunable in settings.
+        public const float SmallManualMaxSeconds = 0.3f;
+
+        // Attempts a defender gets at the set trick when one letter from losing (match
+        // point): the final, game-losing letter only counts after this many failed defenses.
+        public const int LastLetterTries = 2;
+
+        // Stay in spectate this long after the turn flips, so the opponent's trick replay
+        // (which lags the network event) finishes before we're pulled back to skate.
+        public const float SpectateExitBufferSeconds = 1.5f;
+
+        // How long the defender's "You: <trick>" attempt feedback stays on the HUD after a
+        // defense, so it survives the immediate flip to Waiting on a missed/bailed trick.
+        public const float RegisteredTrickSeconds = 3f;
 
         // Basic, non-exhaustive block list. The word is drawn on other players' screens,
         // so this just stops the obvious trolling; it is not meant to be comprehensive.
