@@ -56,7 +56,8 @@ namespace MultiplayerEvents
         {
             if (countdownDuration >= 0f && countdown <= countdownDuration)
             {
-                Utils.ShowNotification((countdownDuration - countdown).ToString("N0"), 1f);
+                float remaining = countdownDuration - countdown;
+                Utils.ShowNotification(remaining < 0.5f ? "GO!" : remaining.ToString("N0"), 1f);
                 countdown += Time.deltaTime;
             }
 
