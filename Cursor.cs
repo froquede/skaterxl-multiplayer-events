@@ -99,7 +99,7 @@ namespace MultiplayerEvents
 
                 if (PlayerController.Instance.inputController.player.GetButton(InputBinding.Cancel))
                 {
-                    Utils.DisableCursor();
+                    ClearPlacement(); // exit + drop the half-placed preview gate
                 }
             }
             else if (renderer.enabled) renderer.enabled = false;
@@ -134,7 +134,7 @@ namespace MultiplayerEvents
                 pointB.transform.position = transform.position;
                 checkPoint.pointB = pointB;
 
-                Main.eventManager.race.AddNewCheckPoint(checkPoint);
+                if (Main.eventManager.race != null) Main.eventManager.race.AddNewCheckPoint(checkPoint);
             }
         }
 

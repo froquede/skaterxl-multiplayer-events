@@ -172,6 +172,9 @@ namespace MultiplayerEvents
         }
 
         public bool RaceStarted => running && PhotonNetwork.ServerTimestamp >= startServerTime;
+        // True only while WE still have gates to hit. Once we finish, the race stays live for the
+        // ranking, but we shouldn't be locked out of the pin drop / checkpoint respawns anymore.
+        public bool ActivelyRacing => running && !finishedLocally;
 
         // --- In-race progress -----------------------------------------------
 

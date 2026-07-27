@@ -12,6 +12,7 @@ namespace MultiplayerEvents
     class Tick : MonoBehaviour
     {
         float countdownDuration = -1f, countdown = -1f;
+        string lastCountdownLabel = ""; // last countdown value shown, so we only refresh on change
         public bool GOSUI = false;
         GUIStyle styleActive, styleDisabled, styleSmall, styleSmallAccent, styleCenterTrick, styleAllRight, styleRightNoFont;
         bool styleCreated = false;
@@ -58,8 +59,10 @@ namespace MultiplayerEvents
             {
                 float remaining = countdownDuration - countdown;
                 // Ceil so each number holds a full second (round would flash the first one),
-                // then GO! at zero.
-                Utils.ShowNotification(remaining < 0.3f ? "GO!" : Mathf.CeilToInt(remaining).ToString(), 1f);
+                // then GO! at zero. Only refresh on change - ShowNotification rebuilds a GameObject
+                // each call, so re-showing every frame would churn ~60 allocs/sec.
+                string label = remaining < 0.3f ? "GO!" : Mathf.CeilToInt(remaining).ToString();
+                if (label != lastCountdownLabel) { Utils.ShowNotification(label, 1.1f); lastCountdownLabel = label; }
                 countdown += Time.deltaTime;
             }
 
@@ -74,7 +77,7 @@ namespace MultiplayerEvents
             // never left blocked outside a race.
             if (PlayerController.Instance != null && PlayerController.Instance.respawn != null)
             {
-                bool inRace = em.race != null && em.race.running;
+                bool inRace = em.race != null && em.race.ActivelyRacing; // released once you finish
                 if (inRace) { PlayerController.Instance.respawn.allowSettingSpawnPoint = false; pinDropDisabled = true; }
                 else if (pinDropDisabled) { PlayerController.Instance.respawn.allowSettingSpawnPoint = true; pinDropDisabled = false; }
             }
@@ -234,8 +237,7 @@ namespace MultiplayerEvents
         {
             countdownDuration = duration;
             countdown = 0f;
-
-            Utils.ShowNotification(countdownDuration, 1f);
+            lastCountdownLabel = ""; // force the first tick to show
         }
 
         List<UnityEngine.Object> toDestroy = new List<UnityEngine.Object>();

@@ -377,6 +377,15 @@ namespace MultiplayerEvents
             OpenRaceLobby();
         }
 
+        // Host: back out of race setup. If a lobby was open, tell joiners it's gone so their
+        // join prompt / "waiting for start" doesn't hang until timeout.
+        public void AbortRaceSetup()
+        {
+            if (raceLobbyOpen && race != null) RaiseRace(new object[] { RaceMessage.Cancel, race.raceId });
+            Disable(true);
+            Reset();
+        }
+
         // Participant: quit the race just for yourself (drops you from everyone's ranking).
         public void LeaveRace()
         {
@@ -469,6 +478,7 @@ namespace MultiplayerEvents
                 // Already busy (host started locally, or we're in another event) -> ignore, never
                 // overwrite. A legit joiner has no event here because they couldn't join while busy.
                 if (race != null || SKATE != null) return;
+                if (data.Length < 6) return; // malformed/short Start - need laps, startTime, csv, cpCount
                 string participantsCsv = data.Length > 4 ? data[4] as string ?? "" : "";
                 bool imIn = participantsCsv.Split(new[] { GameConfig.RaceParticipantSeparator }, StringSplitOptions.RemoveEmptyEntries).Contains(myUserId);
                 if (!imIn) return; // not a participant

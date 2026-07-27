@@ -84,8 +84,7 @@ namespace MultiplayerEvents
 
             try
             {
-                if (eventManager.race != null) eventManager.race.Disable();
-                eventManager.Disable();
+                eventManager.Disable(); // also disables the race/SKATE if one is live
 
                 UnityEngine.Object.Destroy(go);
                 UnityEngine.Object.Destroy(cursor.gameObject);
@@ -154,7 +153,7 @@ namespace MultiplayerEvents
                                     bool placing = Main.cursor != null && Main.cursor.active;
                                     if (GUILayout.Button(placing ? "Done Placing" : "Add Checkpoint", GUILayout.Height(42f), GUILayout.Width(212f)))
                                     {
-                                        if (placing) Utils.DisableCursor();
+                                        if (placing) Main.cursor.ClearPlacement(); // exit + drop the half-placed preview gate
                                         else Utils.EnableCursor();
                                     }
                                     GUILayout.Label("Checkpoints: " + cpCount, text);
@@ -197,8 +196,7 @@ namespace MultiplayerEvents
                                     GUILayout.Space(12);
                                     if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))
                                     {
-                                        eventManager.Disable(true);
-                                        eventManager.Reset();
+                                        eventManager.AbortRaceSetup();
                                     }
                                 }
                                 else
