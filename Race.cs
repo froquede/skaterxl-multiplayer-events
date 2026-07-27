@@ -198,11 +198,17 @@ namespace MultiplayerEvents
                     finishedLocally = true;
                     BroadcastFinish(me.totalMs);
                     Utils.ShowNotification("Finished - " + FormatTime(me.totalMs), 4f);
+                    Utils.PlayTurnSound(true); // stronger cue on finish (local player only)
                     UpdateNextIndicator(); // all off once finished
                     return;
                 }
 
                 Utils.ShowNotification("Lap " + (me.lapsDone + 1) + " / " + laps, 2f);
+                Utils.PlayTurnSound(true); // lap complete
+            }
+            else
+            {
+                Utils.PlayTurnSound(false); // light tick for passing a gate
             }
 
             BroadcastProgress(me);

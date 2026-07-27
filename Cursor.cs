@@ -63,7 +63,7 @@ namespace MultiplayerEvents
                 // Chase a point just ahead of the CURRENT cursor position (bounded pursuit, so speed
                 // matches the original) - not the accumulating lastHitPoint, which compounded velocity.
                 Vector3 basePos = transform.position;
-                Vector3 candidate = basePos + move * (camDist / 5.66f) / 4f;
+                Vector3 candidate = basePos + move * (camDist / 5.66f) / 2.5f;
 
                 // Snap to ground near the current height only: start just above the cursor and reach
                 // a short way down. This follows slopes smoothly, ignores anything high overhead (no
