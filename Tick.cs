@@ -28,6 +28,7 @@ namespace MultiplayerEvents
         float passHoldTime = 0f, spectateHoldTime = 0f;
         bool passFired = false, spectateFired = false;
         float spectateExitAt = -1f; // scheduled auto-exit time (buffer after the turn flips)
+        bool pinDropDisabled = false; // true while we've forced the spawn-pin drop off for a race
 
         // Turn-change + new-letter feedback.
         bool hasLastState = false;
@@ -64,6 +65,16 @@ namespace MultiplayerEvents
 
             // Invitation timeouts + accept/decline input.
             MultiplayerEventManager em = Main.eventManager;
+
+            // Spawn-pin drop is disabled ONLY while actively racing (checkpoints drive respawns).
+            // Forced off each frame during a race, and forced back on the instant it ends, so it's
+            // never left blocked outside a race.
+            if (PlayerController.Instance != null && PlayerController.Instance.respawn != null)
+            {
+                bool inRace = em.race != null && em.race.running;
+                if (inRace) { PlayerController.Instance.respawn.allowSettingSpawnPoint = false; pinDropDisabled = true; }
+                else if (pinDropDisabled) { PlayerController.Instance.respawn.allowSettingSpawnPoint = true; pinDropDisabled = false; }
+            }
             if (em.pendingInviteTo != "" && Time.time > em.pendingInviteExpiry) em.CancelInvite(true);
             if (em.hasIncomingInvite)
             {

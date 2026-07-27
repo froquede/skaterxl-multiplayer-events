@@ -50,12 +50,6 @@ namespace MultiplayerEvents
 
                 if (!renderer.enabled) renderer.enabled = true;
 
-                RaycastHit hit;
-                if (Physics.Raycast(transform.position + new Vector3(0, 1f, 0), Vector3.down, out hit, Mathf.Infinity, LayerUtility.GroundMask))
-                {
-                    lastHitPoint = hit.point;
-                }
-
                 // Zoom the placement camera with the triggers (RT in, LT out).
                 float rt = PlayerController.Instance.inputController.player.GetAxis(InputBinding.RT);
                 float lt = PlayerController.Instance.inputController.player.GetAxis(InputBinding.LT);
@@ -66,7 +60,22 @@ namespace MultiplayerEvents
                 float lsx = PlayerController.Instance.inputController.LeftStick.rawInput.pos.x;
                 float lsy = PlayerController.Instance.inputController.LeftStick.rawInput.pos.y;
                 Vector3 move = Quaternion.Euler(0f, camYaw, 0f) * new Vector3(lsx, 0f, lsy);
-                lastHitPoint += move * (camDist / 5.66f) / 4f;
+                Vector3 candidate = lastHitPoint + move * (camDist / 5.66f) / 4f;
+
+                // Snap to the ground beneath the target, raycasting from well ABOVE it. Reject a big
+                // drop so sliding off an edge can't send the cursor down onto the collider far below
+                // the map - instead it keeps its height and glides over the gap until real ground is
+                // under it again.
+                RaycastHit hit;
+                if (Physics.Raycast(new Vector3(candidate.x, lastHitPoint.y + 300f, candidate.z), Vector3.down, out hit, Mathf.Infinity, LayerUtility.GroundMask)
+                    && hit.point.y > lastHitPoint.y - 20f)
+                {
+                    lastHitPoint = hit.point;
+                }
+                else
+                {
+                    lastHitPoint = new Vector3(candidate.x, lastHitPoint.y, candidate.z); // glide over the gap
+                }
 
                 transform.position = Vector3.Lerp(transform.position, lastHitPoint, Time.deltaTime * 12f);
 
