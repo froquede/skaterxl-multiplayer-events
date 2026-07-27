@@ -57,7 +57,9 @@ namespace MultiplayerEvents
             if (countdownDuration >= 0f && countdown <= countdownDuration)
             {
                 float remaining = countdownDuration - countdown;
-                Utils.ShowNotification(remaining < 0.5f ? "GO!" : remaining.ToString("N0"), 1f);
+                // Ceil so each number holds a full second (round would flash the first one),
+                // then GO! at zero.
+                Utils.ShowNotification(remaining < 0.3f ? "GO!" : Mathf.CeilToInt(remaining).ToString(), 1f);
                 countdown += Time.deltaTime;
             }
 

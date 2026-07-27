@@ -130,7 +130,7 @@ namespace MultiplayerEvents
         // --- Race (preview) ---
         public const int DefaultRaceLaps = 1;
         public const int MaxRaceLaps = 10;
-        public const float RaceStartCountdownSeconds = 5f;  // between "Start" and the race clock starting
+        public const float RaceStartCountdownSeconds = 3f;  // between "Start" and the race clock starting (3-2-1-GO)
         public const float RaceLobbyTimeoutSeconds = 45f;   // how long a join prompt stays up
         public const string RaceParticipantSeparator = ","; // UserIds are GUID-ish, comma-safe
 
