@@ -367,6 +367,16 @@ namespace MultiplayerEvents
             OpenRaceLobby();
         }
 
+        // Participant: quit the race just for yourself (drops you from everyone's ranking).
+        public void LeaveRace()
+        {
+            if (race == null) return;
+            RaiseRace(new object[] { RaceMessage.Leave, race.raceId, myUserId });
+            Utils.ShowNotification("Left the race", 2f);
+            Disable(true);
+            Reset();
+        }
+
         // Host or participant: tear the race down for everyone in it.
         public void StopRace()
         {

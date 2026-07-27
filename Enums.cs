@@ -60,6 +60,7 @@ namespace MultiplayerEvents
         public const string Start = "raceStart";    // host -> room: go            [key, raceId, laps, startServerTime, participantsCsv, cpCount, A0,B0,A1,B1...]
         public const string Progress = "raceProg";  // racer -> race: checkpoint   [key, raceId, userId, lapsDone, nextCp, serverTime]
         public const string Finish = "raceFin";     // racer -> race: finished     [key, raceId, userId, totalMs]
+        public const string Leave = "raceLeave";    // racer -> race: I quit        [key, raceId, userId]
         public const string Stop = "raceStop";      // host -> race: teardown      [key, raceId]
     }
 

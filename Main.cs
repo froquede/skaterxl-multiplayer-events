@@ -211,6 +211,17 @@ namespace MultiplayerEvents
                             }
                         }
 
+                        // Participant (non-host) in a race: let them bail out anytime.
+                        if (eventManager.race != null && !eventManager.isEventOwner)
+                        {
+                            GUILayout.Label("Race (preview)", text);
+                            GUILayout.Space(8);
+                            if (GUILayout.Button("Leave Race", GUILayout.Height(42f), GUILayout.Width(212f)))
+                            {
+                                eventManager.LeaveRace();
+                            }
+                        }
+
                         if (eventManager.SKATE != null)
                         {
                             GUILayout.Label("Game of S.K.A.T.E.", text);

@@ -271,6 +271,10 @@ namespace MultiplayerEvents
                 p.finished = true;
                 p.totalMs = (int)data[3];
             }
+            else if (key == RaceMessage.Leave)
+            {
+                RemoveParticipant(data[2] as string);
+            }
         }
 
         // --- Ranking + display ----------------------------------------------
@@ -309,9 +313,10 @@ namespace MultiplayerEvents
 
         // --- Teardown --------------------------------------------------------
 
-        // Remove a racer who left the room from the ranking.
+        // Remove a racer (left the room, or quit the race) from the ranking.
         public void RemoveParticipant(string userId)
         {
+            if (string.IsNullOrEmpty(userId)) return;
             participantIds.Remove(userId);
             progress.Remove(userId);
         }
