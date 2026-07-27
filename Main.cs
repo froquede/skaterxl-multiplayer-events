@@ -149,12 +149,18 @@ namespace MultiplayerEvents
 
                                 if (e.state == EventState.Stopped)
                                 {
+                                    int cpCount = eventManager.race.checkpoints.Count;
+
                                     if (GUILayout.Button("Add Checkpoint", GUILayout.Height(42f), GUILayout.Width(212f)))
                                     {
                                         Utils.EnableCursor();
                                     }
-                                    GUILayout.Label("Checkpoints: " + eventManager.race.checkpoints.Count, text);
-                                    GUILayout.Space(4);
+                                    GUILayout.Label("Checkpoints: " + cpCount, text);
+                                    if (cpCount > 0 && GUILayout.Button("Clear Checkpoints", GUILayout.Height(28f), GUILayout.Width(212f)))
+                                    {
+                                        eventManager.ClearRaceCheckpoints();
+                                    }
+                                    GUILayout.Space(6);
 
                                     GUILayout.BeginHorizontal();
                                     GUILayout.Label("Laps", GUILayout.Width(60));
@@ -164,30 +170,27 @@ namespace MultiplayerEvents
                                     GUILayout.EndHorizontal();
                                     GUILayout.Space(6);
 
+                                    // Lobby is optional - invite others to join. You can also start solo.
                                     if (!eventManager.raceLobbyOpen)
                                     {
-                                        if (GUILayout.Button("Open Lobby", GUILayout.Height(42f), GUILayout.Width(212f)))
-                                        {
+                                        if (GUILayout.Button("Open Lobby", GUILayout.Height(28f), GUILayout.Width(212f)))
                                             eventManager.OpenRaceLobby();
-                                        }
                                     }
                                     else
                                     {
-                                        GUILayout.Label("Joined: " + eventManager.raceJoined.Count, text);
-                                        GUILayout.Space(4);
-                                        if (eventManager.race.checkpoints.Count > 0)
-                                        {
-                                            if (GUILayout.Button("Start Race", GUILayout.Height(42f), GUILayout.Width(212f)))
-                                            {
-                                                eventManager.StartRace();
-                                            }
-                                        }
-                                        else GUILayout.Label("Add at least one checkpoint", text);
+                                        GUILayout.Label("Lobby open - joined: " + eventManager.raceJoined.Count, text);
                                         if (GUILayout.Button("Close Lobby", GUILayout.Height(28f), GUILayout.Width(212f)))
-                                        {
                                             eventManager.CancelRaceLobby();
-                                        }
                                     }
+                                    GUILayout.Space(6);
+
+                                    // Start is always available once there's at least one checkpoint.
+                                    if (cpCount > 0)
+                                    {
+                                        if (GUILayout.Button("Start Race", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                            eventManager.StartRace();
+                                    }
+                                    else GUILayout.Label("Add at least one checkpoint to start", text);
 
                                     GUILayout.Space(12);
                                     if (GUILayout.Button("<", GUILayout.Height(42f), GUILayout.Width(42f)))

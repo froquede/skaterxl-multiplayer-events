@@ -94,36 +94,19 @@ namespace MultiplayerEvents
             catch { }
         }
 
-        // Configure an HDRP/Lit material for alpha-blended transparency at runtime. Setting the
-        // inspector floats alone doesn't work - HDRP switches to the transparent pass via shader
-        // KEYWORDS + blend factors + the transparent render queue, which we set here explicitly.
-        // (If the game's build stripped HDRP/Lit's transparent variant this can't help, but it's
-        // the same shader the cursor uses.) Double-sided so a gate is visible from both approaches.
-        public static void ApplyHDRPTransparency(Material mat, Color color)
+        // Color an HDRP/Lit material as an OPAQUE, softly-glowing marker. Skater XL's build strips
+        // HDRP/Lit's transparent pass (a transparent material renders only its shadow, no surface),
+        // so we stay opaque - and lean on small/low geometry to avoid blocking the view. Emission
+        // is part of the standard lit pass (not a stripped variant), so it renders reliably and
+        // keeps a low marker readable even in shadow.
+        public static void ApplyGateColor(Material mat, Color color)
         {
-            mat.SetColor("_BaseColor", color);
-            mat.SetColor("_Color", color);
-            mat.SetFloat("_SurfaceType", 1f);   // Transparent
-            mat.SetFloat("_BlendMode", 0f);     // Alpha
-            mat.SetFloat("_AlphaClip", 0f);     // blend, not cutout (was 1 - fought transparency)
-            mat.SetFloat("_AlphaCutoffEnable", 0f);
-            mat.SetFloat("_SrcBlend", 1f);      // One (HDRP premultiplies in-shader)
-            mat.SetFloat("_DstBlend", 10f);     // OneMinusSrcAlpha
-            mat.SetFloat("_AlphaSrcBlend", 1f);
-            mat.SetFloat("_AlphaDstBlend", 10f);
-            mat.SetFloat("_ZWrite", 0f);
-            mat.SetFloat("_TransparentZWrite", 0f);
-            mat.SetFloat("_ZTestDepthEqualForOpacity", 0f);
-            mat.SetFloat("_ZTestTransparent", 4f); // LEqual
-            mat.SetFloat("_CullMode", 0f);         // no backface cull
-            mat.SetFloat("_CullModeForward", 0f);
-            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent; // 3000
-            mat.SetOverrideTag("RenderType", "Transparent");
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.EnableKeyword("_BLENDMODE_ALPHA");
-            mat.EnableKeyword("_ENABLE_FOG_ON_TRANSPARENT");
-            mat.DisableKeyword("_BLENDMODE_ADD");
-            mat.DisableKeyword("_ALPHATEST_ON");
+            Color opaque = new Color(color.r, color.g, color.b, 1f);
+            mat.SetColor("_BaseColor", opaque);
+            mat.SetColor("_Color", opaque);
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissiveColor", new Color(color.r, color.g, color.b) * 1.5f);
+            mat.SetFloat("_EmissiveExposureWeight", 0f); // emission independent of scene exposure
         }
 
         public static CheckPoint AddCheckPoint()

@@ -52,10 +52,14 @@ namespace MultiplayerEvents
             laps = Mathf.Clamp(lapCount, 1, GameConfig.MaxRaceLaps);
         }
 
-        // Host places a checkpoint (from the cursor tool). Order = current count.
+        // Host places a checkpoint (from the cursor tool). Order = current count. We COPY the
+        // points into ones the race owns, so the cursor destroying its own placement objects can
+        // never corrupt a committed checkpoint (they used to share Point objects).
         public void AddNewCheckPoint(CheckPoint cp)
         {
-            CheckPoint newC = Utils.AddCheckPoint(cp.pointA, cp.pointB);
+            Point a = Utils.AddPoint(); a.transform.position = cp.pointA.transform.position;
+            Point b = Utils.AddPoint(); b.transform.position = cp.pointB.transform.position;
+            CheckPoint newC = Utils.AddCheckPoint(a, b);
             newC.order = checkpoints.Count;
             checkpoints.Add(newC);
         }
@@ -122,9 +126,48 @@ namespace MultiplayerEvents
             running = true;
             state = EventState.Running;
 
+            TeleportToStart();
+
             float secs = Mathf.Max(0f, (startServerTime - PhotonNetwork.ServerTimestamp) / 1000f);
             Main.tick.StartCountdown(secs);
             Utils.ShowNotification("Race starting", 2f);
+        }
+
+        // Put the local player a few metres behind the first gate, facing the course, so crossing
+        // checkpoint 0 is the real start. Each client teleports only its own player (no collision
+        // between players, so a shared start line is fine).
+        void TeleportToStart()
+        {
+            if (checkpoints.Count == 0 || PlayerController.Instance == null) return;
+            CheckPoint c0 = checkpoints[0];
+            if (c0.pointA == null || c0.pointB == null) return;
+
+            Vector3 mid = Vector3.Lerp(c0.pointA.transform.position, c0.pointB.transform.position, 0.5f);
+
+            Vector3 dir;
+            if (checkpoints.Count >= 2 && checkpoints[1].pointA != null && checkpoints[1].pointB != null)
+            {
+                Vector3 next = Vector3.Lerp(checkpoints[1].pointA.transform.position, checkpoints[1].pointB.transform.position, 0.5f);
+                dir = next - mid; // aim toward the next gate
+            }
+            else
+            {
+                dir = Vector3.Cross(Vector3.up, (c0.pointB.transform.position - c0.pointA.transform.position)); // gate normal
+            }
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) dir = Vector3.forward;
+            dir.Normalize();
+
+            Vector3 spawnPos = mid - dir * 3f;
+            Quaternion spawnRot = Quaternion.LookRotation(dir, Vector3.up);
+
+            try
+            {
+                Respawn r = PlayerController.Instance.respawn;
+                r.SetSpawnPos(spawnPos, spawnRot, false);
+                r.ForceRespawn();
+            }
+            catch (System.Exception e) { Utils.Log("Race teleport failed: " + e); }
         }
 
         public bool RaceStarted => running && PhotonNetwork.ServerTimestamp >= startServerTime;
@@ -140,6 +183,7 @@ namespace MultiplayerEvents
             int now = PhotonNetwork.ServerTimestamp;
             me.nextCp++;
             me.lastServerTime = now;
+            SetCheckpointRespawn(); // bail after here -> respawn at this gate, not the start
 
             if (me.nextCp >= checkpoints.Count)
             {
@@ -160,6 +204,20 @@ namespace MultiplayerEvents
             }
 
             BroadcastProgress(me);
+        }
+
+        // Move the local player's respawn point to where they crossed the gate, so a bail sends
+        // them back to their last checkpoint instead of the start line.
+        void SetCheckpointRespawn()
+        {
+            try
+            {
+                PlayerController pc = PlayerController.Instance;
+                if (pc == null) return;
+                Transform t = pc.skaterController.skaterTransform;
+                pc.respawn.SetSpawnPos(t.position, t.rotation, pc.IsSwitch);
+            }
+            catch (System.Exception e) { Utils.Log("Race checkpoint respawn set failed: " + e); }
         }
 
         void BroadcastProgress(RaceProgress me)
@@ -264,6 +322,7 @@ namespace MultiplayerEvents
         {
             running = false;
             DestroyCheckpoints();
+            if (Main.cursor != null) Main.cursor.ClearPlacement(); // drop any in-progress placement objects
             PhotonNetwork.RemoveCallbackTarget(this);
         }
     }

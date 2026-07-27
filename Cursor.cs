@@ -26,7 +26,7 @@ namespace MultiplayerEvents
             Destroy(sphere.GetComponent<CapsuleCollider>());
 
             Material material = new Material(Shader.Find("HDRP/Lit"));
-            Utils.ApplyHDRPTransparency(material, new Color(0f, 0f, 1f, 0.25f));
+            Utils.ApplyGateColor(material, new Color(0f, 0.4f, 1f));
 
             renderer = sphere.GetComponent<MeshRenderer>();
             renderer.material = material;
@@ -119,6 +119,21 @@ namespace MultiplayerEvents
                 pointA = pointB = temporaryPoint = null;
                 Utils.Log("Destroyed");
             }
+        }
+
+        // Destroy any in-progress placement objects and stop the cursor. Safe to call anytime -
+        // used by "Clear Checkpoints" and on race teardown so nothing is left in the scene.
+        public void ClearPlacement()
+        {
+            if (active) Utils.DisableCursor(); // restores the camera + sets active = false
+            markDestroy = false;
+            if (temporaryPoint != null) Destroy(temporaryPoint.gameObject);
+            if (checkPoint != null) Destroy(checkPoint.gameObject);
+            if (pointA != null) Destroy(pointA.gameObject);
+            if (pointB != null) Destroy(pointB.gameObject);
+            checkPoint = null;
+            pointA = pointB = temporaryPoint = null;
+            if (renderer != null) renderer.enabled = false;
         }
     }
 }

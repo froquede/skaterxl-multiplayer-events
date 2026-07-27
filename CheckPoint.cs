@@ -18,7 +18,7 @@ namespace MultiplayerEvents
             visual.transform.parent = transform;
             Destroy(visual.GetComponent<BoxCollider>());
             mat = new Material(Shader.Find("HDRP/Lit"));
-            Utils.ApplyHDRPTransparency(mat, new Color(0f, 1f, 0f, 0.35f)); // low bar, so even if opaque it doesn't block
+            Utils.ApplyGateColor(mat, new Color(0f, 1f, 0.2f)); // opaque low bar - doesn't block the view
             visual.GetComponent<Renderer>().material = mat;
 
             // Detection volume: invisible (renderer removed), tall + deep so a skater at speed can't

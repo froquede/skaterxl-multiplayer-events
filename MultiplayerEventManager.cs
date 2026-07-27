@@ -352,6 +352,13 @@ namespace MultiplayerEvents
             Reset();
         }
 
+        // Host: wipe all placed checkpoints (and any in-progress placement) to start over.
+        public void ClearRaceCheckpoints()
+        {
+            if (Main.cursor != null) Main.cursor.ClearPlacement();
+            if (race != null) race.DestroyCheckpoints();
+        }
+
         // Joiner: accept the lobby prompt. We create our race only once Start arrives.
         public void JoinIncomingRace()
         {
