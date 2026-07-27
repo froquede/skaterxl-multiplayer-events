@@ -28,7 +28,8 @@ namespace MultiplayerEvents
         public bool running = false;
         public bool myTurn = false;
         public TrickCombo actualTrickCombo;
-        public string lastRegisteredTrick = ""; // what the game registered for our last attempt (HUD feedback)
+        public string lastRegisteredTrick = ""; // what the game registered for our last DEFENSE attempt (HUD feedback)
+        public float lastRegisteredTime = -10f; // when lastRegisteredTrick was set, for the timed HUD display
         int defenseTriesLeft = 1;               // remaining attempts at the current set trick (>1 only at match point)
         public int retriesValue = GameConfig.DefaultRetries;
 
@@ -152,10 +153,6 @@ namespace MultiplayerEvents
 
         public void OnComboEnded(TrickCombo trickC)
         {
-            // Remember what the game registered for our own attempt so the HUD can
-            // show it - lets the defender see exactly what they landed vs the target.
-            lastRegisteredTrick = Utils.ComboName(trickC);
-
             if (playerState == GOSState.Setting && actualTrickCombo == null)
             {
                 if (trickC.Landed)
@@ -173,11 +170,9 @@ namespace MultiplayerEvents
                     }
 
                     actualTrickCombo = trickC;
-                    if (retries > 0) ConfirmTrick();
-                    else
-                    {
-                        SetTrick();
-                    }
+                    // Always confirm - even with no retries left - so a trick is never silently
+                    // auto-set. The prompt disables Redo when retries == 0 (see Tick).
+                    ConfirmTrick();
                 }
                 else
                 {
@@ -187,6 +182,11 @@ namespace MultiplayerEvents
 
             if (playerState == GOSState.Defending && actualTrickCombo != null)
             {
+                // Show the defender exactly what the game registered for this attempt (issue #6),
+                // including a missed trick or a bail. Timestamped so the HUD can keep it up briefly.
+                lastRegisteredTrick = Utils.ComboName(trickC);
+                lastRegisteredTime = UnityEngine.Time.time;
+
                 bool matched = trickC.Landed && CompareCombos(trickC, actualTrickCombo);
                 if (matched)
                 {
@@ -216,10 +216,13 @@ namespace MultiplayerEvents
             return myLetters == modeLetters.Length - 1;
         }
 
-        // Explicitly pass your setting turn without having to bail (issue #3).
+        // Explicitly pass your setting turn without having to bail (issue #3). Works while idly
+        // setting AND while a landed-but-unconfirmed trick is pending, so you can pass out of a
+        // trick you didn't mean to land.
         public void TryPassTurn()
         {
-            if (playerState != GOSState.Setting || actualTrickCombo != null) return;
+            if (playerState != GOSState.Setting) return;
+            Main.tick.trickConfirmation = null; // drop any pending confirm prompt
             Utils.ShowNotification("Turn passed", 1.5f);
             PassTurn();
         }

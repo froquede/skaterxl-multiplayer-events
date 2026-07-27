@@ -27,6 +27,7 @@ namespace MultiplayerEvents
         bool spectating = false;
         float passHoldTime = 0f, spectateHoldTime = 0f;
         bool passFired = false, spectateFired = false;
+        float spectateExitAt = -1f; // scheduled auto-exit time (buffer after the turn flips)
 
         // Turn-change + new-letter feedback.
         bool hasLastState = false;
@@ -76,8 +77,15 @@ namespace MultiplayerEvents
 
             if (trickConfirmation != null && PlayerController.Instance != null)
             {
-                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadLeftAction) || PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.DpadRightAction)) confirmTrick = !confirmTrick;
-                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
+                var cInput = PlayerController.Instance.inputController.player;
+                bool canRedo = Main.eventManager.SKATE != null && Main.eventManager.SKATE.retries > 0;
+
+                // Redo is only offered while retries remain; otherwise the choice is locked to Set
+                // (the prompt still shows so nothing is silently auto-set).
+                if (!canRedo) confirmTrick = true;
+                else if (cInput.GetButtonUp(InputBinding.DpadLeftAction) || cInput.GetButtonUp(InputBinding.DpadRightAction)) confirmTrick = !confirmTrick;
+
+                if (cInput.GetButtonUp(InputBinding.Confirm))
                 {
                     Main.eventManager.SKATE.OnConfirmEvent(confirmTrick);
                     trickConfirmation = null;
@@ -128,9 +136,10 @@ namespace MultiplayerEvents
             {
                 var input = PlayerController.Instance.inputController.player;
 
-                // Pass your setting turn without bailing - only while idly setting.
-                bool canPass = skate.playerState == GameOfSkate.GOSState.Setting
-                    && skate.actualTrickCombo == null && trickConfirmation == null;
+                // Pass your setting turn without bailing. Available the whole time it's your turn
+                // to set - idle, or after landing a trick you haven't confirmed yet (so you can
+                // pass out of an unintended trick-out even though the game registered something).
+                bool canPass = skate.playerState == GameOfSkate.GOSState.Setting;
                 if (canPass && input.GetButton(InputBinding.PassTurn))
                 {
                     passHoldTime += Time.deltaTime;
@@ -151,8 +160,14 @@ namespace MultiplayerEvents
                 }
                 else { spectateHoldTime = 0f; spectateFired = false; }
 
-                // Auto-return to skating the moment it's our turn to act again.
-                if (spectating && skate.playerState != GameOfSkate.GOSState.Waiting) StopSpectate();
+                // Auto-return to skating when it's our turn - but with a short buffer so the
+                // opponent's trick replay (which lags the network event) finishes on screen first.
+                if (spectating && skate.playerState != GameOfSkate.GOSState.Waiting)
+                {
+                    if (spectateExitAt < 0f) spectateExitAt = Time.time + GameConfig.SpectateExitBufferSeconds;
+                    if (Time.time >= spectateExitAt) StopSpectate();
+                }
+                else spectateExitAt = -1f;
             }
         }
 
@@ -295,9 +310,11 @@ namespace MultiplayerEvents
                 GUILayout.BeginVertical();
                 {
                     GUILayout.Label(turnText, myTurn ? styleSmallAccent : styleSmall);
-                    // What the game registered for our last attempt (issue #6): lets the
-                    // defender see exactly what they landed next to the trick to match.
-                    if ((st == GameOfSkate.GOSState.Setting || st == GameOfSkate.GOSState.Defending) && skate.lastRegisteredTrick != "")
+                    // Show the defender what the game registered for their attempt (issue #6),
+                    // persisting briefly past the flip to Waiting on a missed/bailed trick. Never
+                    // while setting - the trick is already shown top-center there.
+                    if (st != GameOfSkate.GOSState.Setting && skate.lastRegisteredTrick != ""
+                        && Time.time - skate.lastRegisteredTime < GameConfig.RegisteredTrickSeconds)
                         GUILayout.Label("You: " + skate.lastRegisteredTrick, styleSmall);
                 }
                 GUILayout.EndVertical();
@@ -330,22 +347,36 @@ namespace MultiplayerEvents
                 // Only show the trick name while a trick is actually in play (setting your own
                 // or defending the opponent's). Once you're back to Waiting it should clear,
                 // rather than leave the last combo lingering on screen.
-                if (st != GameOfSkate.GOSState.Waiting) TrickName();
+                // Show the trick top-center while it's in play: while setting/defending, and also
+                // while you wait for the opponent to defend the trick you just set ("You set: ...").
+                if (st != GameOfSkate.GOSState.Waiting || (skate.myTurn && skate.actualTrickCombo != null)) TrickName();
             }
 
             if (trickConfirmation != null)
             {
                 float s = UiScale;
+                bool canRedo = Main.eventManager.SKATE != null && Main.eventManager.SKATE.retries > 0;
                 Rect confirmationContainer = new Rect(Screen.width - 340 * s, Screen.height - 120 * s, 300 * s, 120 * s);
                 GUILayout.BeginArea(confirmationContainer);
                 GUILayout.BeginVertical(GUILayout.Width(300 * s));
                 GUILayout.Label("Confirm trick? " + Utils.ComboName(), styleSmall);
                 GUILayout.BeginHorizontal(GUILayout.Width(300 * s));
                 GUILayout.Label((confirmTrick ? "• " : "") + "Set trick", styleSmall);
-                GUILayout.Label((confirmTrick ? "" : "• ") + "Redo (" + Main.eventManager.SKATE.retries + ")", styleSmall);
+                if (canRedo)
+                {
+                    GUILayout.Label((confirmTrick ? "" : "• ") + "Redo (" + Main.eventManager.SKATE.retries + ")", styleSmall);
+                }
+                else
+                {
+                    // Out of retries: show Redo dimmed and unselectable so it's clear why.
+                    Color prev = GUI.color;
+                    GUI.color = new Color(1f, 1f, 1f, 0.35f);
+                    GUILayout.Label("Redo (0)", styleSmall);
+                    GUI.color = prev;
+                }
                 GUILayout.EndHorizontal();
 
-                GUILayout.Label("Dpad left - right toggle, A / X confirm", styleRightNoFont);
+                GUILayout.Label(canRedo ? "Dpad left - right toggle, A / X confirm" : "A / X confirm", styleRightNoFont);
                 GUILayout.EndVertical();
                 GUILayout.EndArea();
             }
@@ -427,11 +458,14 @@ namespace MultiplayerEvents
             string name = Utils.ComboName();
             if (name == "") return;
 
-            // When defending, make it explicit this is the trick to reproduce.
+            // Label the trick by role: the target to match while defending, and the trick you
+            // just locked in while you wait for the opponent to defend it.
             GameOfSkate skate = Main.eventManager.SKATE;
-            string label = (skate != null && skate.playerState == GameOfSkate.GOSState.Defending)
-                ? "Match:  " + name
-                : name;
+            string label;
+            if (skate == null) label = name;
+            else if (skate.playerState == GameOfSkate.GOSState.Defending) label = "Match:  " + name;
+            else if (skate.playerState == GameOfSkate.GOSState.Waiting && skate.myTurn) label = "You set:  " + name;
+            else label = name;
 
             Rect trickContainer = new Rect(40 * s, 40 * s, Screen.width - 80 * s, 60 * s);
             GUILayout.BeginArea(trickContainer);

@@ -115,6 +115,14 @@ namespace MultiplayerEvents
         // point): the final, game-losing letter only counts after this many failed defenses.
         public const int LastLetterTries = 2;
 
+        // Stay in spectate this long after the turn flips, so the opponent's trick replay
+        // (which lags the network event) finishes before we're pulled back to skate.
+        public const float SpectateExitBufferSeconds = 1.5f;
+
+        // How long the defender's "You: <trick>" attempt feedback stays on the HUD after a
+        // defense, so it survives the immediate flip to Waiting on a missed/bailed trick.
+        public const float RegisteredTrickSeconds = 3f;
+
         // Basic, non-exhaustive block list. The word is drawn on other players' screens,
         // so this just stops the obvious trolling; it is not meant to be comprehensive.
         static readonly string[] BlockedWordFragments =
