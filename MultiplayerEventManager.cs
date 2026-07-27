@@ -317,10 +317,18 @@ namespace MultiplayerEvents
                 new RaiseEventOptions { Receivers = ReceiverGroup.Others }, SendOptions.SendReliable);
         }
 
+        // Snap out of the checkpoint placement view (discarding any half-placed gate). Race actions
+        // call this so e.g. starting a race or opening the lobby also leaves placement mode.
+        void ExitPlacement()
+        {
+            if (Main.cursor != null && Main.cursor.active) Main.cursor.ClearPlacement();
+        }
+
         // Host: announce the lobby to the room and start collecting joins.
         public void OpenRaceLobby()
         {
             if (race == null || !isEventOwner) return;
+            ExitPlacement();
             raceLobbyOpen = true;
             raceJoined.Clear();
             RaiseRace(new object[] { RaceMessage.Open, race.raceId, Utils.GetPlayerID(), race.laps });
@@ -331,6 +339,7 @@ namespace MultiplayerEvents
         public void CancelRaceLobby()
         {
             if (race == null) return;
+            ExitPlacement();
             raceLobbyOpen = false;
             RaiseRace(new object[] { RaceMessage.Cancel, race.raceId });
             Utils.ShowNotification("Lobby closed", 2f);
@@ -340,6 +349,7 @@ namespace MultiplayerEvents
         public void StartRace()
         {
             if (race == null || !isEventOwner || race.checkpoints.Count == 0) return;
+            ExitPlacement();
             raceLobbyOpen = false;
             SaveCourse(); // remember this course so it can be re-raced with Rematch
             int startTime = PhotonNetwork.ServerTimestamp + (int)(GameConfig.RaceStartCountdownSeconds * 1000f);
