@@ -28,6 +28,8 @@ namespace MultiplayerEvents
         public bool running = false;
         public bool myTurn = false;
         public TrickCombo actualTrickCombo;
+        public string lastRegisteredTrick = ""; // what the game registered for our last attempt (HUD feedback)
+        int defenseTriesLeft = 1;               // remaining attempts at the current set trick (>1 only at match point)
         public int retriesValue = GameConfig.DefaultRetries;
 
         public void StartEvent()
@@ -113,6 +115,9 @@ namespace MultiplayerEvents
                     alreadyDone.Add(actualTrickCombo);
 
                     playerState = GOSState.Defending;
+                    lastRegisteredTrick = ""; // clear until we attempt a defense
+                    // On match point the losing letter only counts after several misses.
+                    defenseTriesLeft = IsMatchPoint() ? GameConfig.LastLetterTries : 1;
                 }
 
                 if (key == SkateMessage.LetterSet)
@@ -142,14 +147,23 @@ namespace MultiplayerEvents
         {
             playerState = GOSState.Setting;
             retries = retriesValue;
+            lastRegisteredTrick = ""; // fresh turn - clear the "You: ..." HUD feedback
         }
 
         public void OnComboEnded(TrickCombo trickC)
         {
+            // Remember what the game registered for our own attempt so the HUD can
+            // show it - lets the defender see exactly what they landed vs the target.
+            lastRegisteredTrick = Utils.ComboName(trickC);
+
             if (playerState == GOSState.Setting && actualTrickCombo == null)
             {
                 if (trickC.Landed)
                 {
+                    // A trick that normalizes to nothing (e.g. only a small manual)
+                    // isn't a real set - keep setting instead of locking in nothing.
+                    if (Utils.NormalizedTrickNames(trickC).Count == 0) return;
+
                     // Like a real game of S.K.A.T.E., a trick already used this game
                     // can't be set again - keep setting until a fresh trick or a bail.
                     if (IsAlreadyDone(trickC))
@@ -171,24 +185,43 @@ namespace MultiplayerEvents
                 }
             }
 
-            if (playerState == GOSState.Defending)
+            if (playerState == GOSState.Defending && actualTrickCombo != null)
             {
-                if (actualTrickCombo != null)
+                bool matched = trickC.Landed && CompareCombos(trickC, actualTrickCombo);
+                if (matched)
                 {
-                    if (trickC.Landed)
+                    SendDefenseSuccess();
+                }
+                else
+                {
+                    // Match point: give the extra attempt(s) at the same set trick
+                    // before the game-losing letter actually counts (issue #7).
+                    defenseTriesLeft--;
+                    if (defenseTriesLeft > 0)
                     {
-                        if (CompareCombos(trickC, actualTrickCombo))
-                        {
-                            SendDefenseSuccess();
-                        }
-                        else AddLetter();
+                        Utils.ShowNotification("Last letter - " + defenseTriesLeft + (defenseTriesLeft == 1 ? " try" : " tries") + " left!", 2f);
+                        return; // stay defending on the same trick
                     }
-                    else
-                    {
-                        AddLetter();
-                    }
+
+                    AddLetter();
                 }
             }
+        }
+
+        // True when one more letter would end the game for us (match point).
+        bool IsMatchPoint()
+        {
+            int myLetters = 0;
+            for (int i = 0; i < letters.Length; i++) if (letters[i]) myLetters++;
+            return myLetters == modeLetters.Length - 1;
+        }
+
+        // Explicitly pass your setting turn without having to bail (issue #3).
+        public void TryPassTurn()
+        {
+            if (playerState != GOSState.Setting || actualTrickCombo != null) return;
+            Utils.ShowNotification("Turn passed", 1.5f);
+            PassTurn();
         }
 
         bool IsAlreadyDone(TrickCombo combo)
@@ -203,13 +236,17 @@ namespace MultiplayerEvents
 
         bool CompareCombos(TrickCombo a, TrickCombo b)
         {
-            Utils.Log(a.Tricks.Count + " " + b.Tricks.Count);
-            if (a.Tricks.Count != b.Tricks.Count) return false;
+            // Compare on the normalized trick names (small manuals ignored) so both
+            // sides agree with what the HUD shows.
+            List<string> na = Utils.NormalizedTrickNames(a);
+            List<string> nb = Utils.NormalizedTrickNames(b);
 
-            for (int i = 0; i < b.Tricks.Count; i++)
+            Utils.Log("Compare [" + string.Join(", ", na) + "] vs [" + string.Join(", ", nb) + "]");
+            if (na.Count != nb.Count) return false;
+
+            for (int i = 0; i < na.Count; i++)
             {
-                Utils.Log(a.Tricks[i] + " " + b.Tricks[i]);
-                if (a.Tricks[i].ToString() != b.Tricks[i].ToString()) return false;
+                if (na[i] != nb[i]) return false;
             }
 
             return true;

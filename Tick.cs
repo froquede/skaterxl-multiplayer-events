@@ -16,7 +16,17 @@ namespace MultiplayerEvents
         GUIStyle styleActive, styleDisabled, styleSmall, styleSmallAccent, styleCenterTrick, styleAllRight, styleRightNoFont;
         bool styleCreated = false;
         Color lastAccentColor, lastFontColor;
+        float lastScreenHeight = -1f;
         public TrickCombo trickConfirmation;
+
+        // The HUD was laid out on a 768px-tall screen; scale fonts and rects by the real
+        // height so labels stay the same physical size at 1080p/4K instead of tiny.
+        float UiScale => Screen.height / 768f;
+
+        // Spectate + pass-turn are held on the camera-pan dpad axis (see InputBinding).
+        bool spectating = false;
+        float passHoldTime = 0f, spectateHoldTime = 0f;
+        bool passFired = false, spectateFired = false;
 
         // Turn-change + new-letter feedback.
         bool hasLastState = false;
@@ -86,9 +96,9 @@ namespace MultiplayerEvents
                     {
                         switch (skate.playerState)
                         {
-                            case GameOfSkate.GOSState.Setting:   Utils.ShowNotification("Set a trick", 2f); break;
-                            case GameOfSkate.GOSState.Defending: Utils.ShowNotification("Match the trick", 2f); break;
-                            case GameOfSkate.GOSState.Waiting:   Utils.ShowNotification("Waiting", 1.5f); break;
+                            case GameOfSkate.GOSState.Setting:   Utils.ShowNotification("Set a trick", 2f); Utils.PlayTurnSound(true); break;
+                            case GameOfSkate.GOSState.Defending: Utils.ShowNotification("Match the trick", 2f); Utils.PlayTurnSound(true); break;
+                            case GameOfSkate.GOSState.Waiting:   Utils.ShowNotification("Waiting", 1.5f); Utils.PlayTurnSound(false); break;
                         }
                     }
                     lastPlayerState = skate.playerState;
@@ -109,6 +119,67 @@ namespace MultiplayerEvents
                 lastMyLetterCount = lastOppLetterCount = 0;
                 myPopLetter = oppPopLetter = -1;
             }
+
+            // Held dpad actions: pass the turn (Left) / spectate the opponent (Right).
+            if (spectating && !(GameStateMachine.Instance.CurrentState is SpectateState)) spectating = false;
+            if (spectating && (skate == null || !skate.running)) StopSpectate();
+
+            if (skate != null && skate.running && PlayerController.Instance != null)
+            {
+                var input = PlayerController.Instance.inputController.player;
+
+                // Pass your setting turn without bailing - only while idly setting.
+                bool canPass = skate.playerState == GameOfSkate.GOSState.Setting
+                    && skate.actualTrickCombo == null && trickConfirmation == null;
+                if (canPass && input.GetButton(InputBinding.PassTurn))
+                {
+                    passHoldTime += Time.deltaTime;
+                    if (passHoldTime >= InputBinding.HoldSeconds && !passFired) { skate.TryPassTurn(); passFired = true; }
+                }
+                else { passHoldTime = 0f; passFired = false; }
+
+                // Toggle spectating the opponent (enter only while it's their move).
+                if (input.GetButton(InputBinding.Spectate))
+                {
+                    spectateHoldTime += Time.deltaTime;
+                    if (spectateHoldTime >= InputBinding.HoldSeconds && !spectateFired)
+                    {
+                        spectateFired = true;
+                        if (spectating) StopSpectate();
+                        else if (skate.playerState == GameOfSkate.GOSState.Waiting) StartSpectate(skate);
+                    }
+                }
+                else { spectateHoldTime = 0f; spectateFired = false; }
+
+                // Auto-return to skating the moment it's our turn to act again.
+                if (spectating && skate.playerState != GameOfSkate.GOSState.Waiting) StopSpectate();
+            }
+        }
+
+        // Enter Skater XL's built-in spectate mode targeting our opponent.
+        void StartSpectate(GameOfSkate skate)
+        {
+            NetworkPlayerController opp = Utils.GetNetworkPlayer(skate.opponentUserID);
+            if (opp == null) { Utils.ShowNotification("Can't spectate - opponent not found", 1.5f); return; }
+            if (!opp.CanBeSpectated()) { Utils.ShowNotification("Can't spectate the opponent right now", 1.5f); return; }
+
+            try
+            {
+                GameStateMachine.Instance.Spectate(opp);
+                spectating = true;
+            }
+            catch (Exception e) { Utils.Log("Spectate failed: " + e); }
+        }
+
+        // Leave spectate and return to skating.
+        void StopSpectate()
+        {
+            try
+            {
+                if (GameStateMachine.Instance.CurrentState is SpectateState) GameStateMachine.Instance.RequestPlayState();
+            }
+            catch (Exception e) { Utils.Log("Exit spectate failed: " + e); }
+            spectating = false;
         }
 
         static int CountActive(bool[] arr)
@@ -151,28 +222,31 @@ namespace MultiplayerEvents
         {
             // Rebuild styles on first draw and whenever the configured colors change,
             // so color settings apply live instead of needing a mod reload.
-            if (!styleCreated || lastAccentColor != Main.settings.fontColorAccent || lastFontColor != Main.settings.fontColor)
+            if (!styleCreated || lastAccentColor != Main.settings.fontColorAccent || lastFontColor != Main.settings.fontColor
+                || lastScreenHeight != Screen.height)
             {
                 lastAccentColor = Main.settings.fontColorAccent;
                 lastFontColor = Main.settings.fontColor;
+                lastScreenHeight = Screen.height;
+                float s = UiScale; // scale fonts up from the 768px the HUD was tuned on
 
                 styleActive = new GUIStyle(GUI.skin.label);
                 styleActive.alignment = TextAnchor.MiddleCenter;
-                styleActive.fontSize = 48;
+                styleActive.fontSize = Mathf.RoundToInt(48 * s);
                 styleActive.fontStyle = FontStyle.Bold;
                 styleActive.font = Font.CreateDynamicFontFromOSFont("Tahoma Bold", 24);
                 styleActive.normal.textColor = Main.settings.fontColorAccent;
 
                 styleDisabled = new GUIStyle(GUI.skin.label);
                 styleDisabled.alignment = TextAnchor.MiddleCenter;
-                styleDisabled.fontSize = 48;
+                styleDisabled.fontSize = Mathf.RoundToInt(48 * s);
                 styleDisabled.fontStyle = FontStyle.Bold;
                 styleDisabled.font = Font.CreateDynamicFontFromOSFont("Tahoma Bold", 24);
                 styleDisabled.normal.textColor = Main.settings.fontColor;
 
                 styleSmall = new GUIStyle(GUI.skin.label);
                 styleSmall.alignment = TextAnchor.MiddleRight;
-                styleSmall.fontSize = 20;
+                styleSmall.fontSize = Mathf.RoundToInt(20 * s);
                 styleSmall.fontStyle = FontStyle.Bold;
                 styleSmall.font = Font.CreateDynamicFontFromOSFont("Corbel Bold", 24);
                 styleSmall.normal.textColor = Color.white;
@@ -183,20 +257,21 @@ namespace MultiplayerEvents
 
                 styleCenterTrick = new GUIStyle(GUI.skin.label);
                 styleCenterTrick.alignment = TextAnchor.MiddleCenter;
-                styleCenterTrick.fontSize = 20;
+                styleCenterTrick.fontSize = Mathf.RoundToInt(20 * s);
                 styleCenterTrick.fontStyle = FontStyle.Bold;
                 styleCenterTrick.font = Font.CreateDynamicFontFromOSFont("Corbel Bold", 24);
                 styleCenterTrick.normal.textColor = Color.white;
 
                 styleAllRight = new GUIStyle(GUI.skin.label);
                 styleAllRight.alignment = TextAnchor.MiddleRight;
-                styleAllRight.fontSize = 30;
+                styleAllRight.fontSize = Mathf.RoundToInt(30 * s);
                 styleAllRight.fontStyle = FontStyle.Bold;
                 styleAllRight.font = Font.CreateDynamicFontFromOSFont("Corbel Bold", 24);
                 styleAllRight.normal.textColor = Color.white;
 
                 styleRightNoFont = new GUIStyle(GUI.skin.label);
                 styleRightNoFont.alignment = TextAnchor.MiddleRight;
+                styleRightNoFont.fontSize = Mathf.RoundToInt(12 * s);
 
                 styleCreated = true;
             }
@@ -207,18 +282,28 @@ namespace MultiplayerEvents
 
             if (GOSUI)
             {
-                GameOfSkate.GOSState st = Main.eventManager.SKATE.playerState;
+                float s = UiScale;
+                GameOfSkate skate = Main.eventManager.SKATE;
+                GameOfSkate.GOSState st = skate.playerState;
                 bool myTurn = st != GameOfSkate.GOSState.Waiting;
                 string turnText = st == GameOfSkate.GOSState.Setting ? "SET A TRICK"
                                 : st == GameOfSkate.GOSState.Defending ? "MATCH"
                                 : "WAITING";
 
-                Rect rectTopRight = new Rect(Screen.width - 300, 90, 260, 60);
+                Rect rectTopRight = new Rect(Screen.width - 380 * s, 90 * s, 340 * s, 120 * s);
                 GUILayout.BeginArea(rectTopRight);
-                GUILayout.Label(turnText, myTurn ? styleSmallAccent : styleSmall);
+                GUILayout.BeginVertical();
+                {
+                    GUILayout.Label(turnText, myTurn ? styleSmallAccent : styleSmall);
+                    // What the game registered for our last attempt (issue #6): lets the
+                    // defender see exactly what they landed next to the trick to match.
+                    if ((st == GameOfSkate.GOSState.Setting || st == GameOfSkate.GOSState.Defending) && skate.lastRegisteredTrick != "")
+                        GUILayout.Label("You: " + skate.lastRegisteredTrick, styleSmall);
+                }
+                GUILayout.EndVertical();
                 GUILayout.EndArea();
 
-                Rect rect = new Rect(Screen.width - 300, (Screen.height / 2f) - 130, 260, 260);
+                Rect rect = new Rect(Screen.width - 300 * s, (Screen.height / 2f) - 130 * s, 260 * s, 260 * s);
 
                 GUILayout.BeginArea(rect);
                 GUILayout.BeginVertical();
@@ -230,7 +315,7 @@ namespace MultiplayerEvents
                     }
                     GUILayout.EndHorizontal();
 
-                    GUILayout.Space(20);
+                    GUILayout.Space(20 * s);
 
                     GUILayout.Label((!myTurn ? "• " : "") + Main.eventManager.SKATE.opponentNickname, !myTurn ? styleSmallAccent : styleSmall);
                     GUILayout.BeginHorizontal();
@@ -245,16 +330,17 @@ namespace MultiplayerEvents
                 // Only show the trick name while a trick is actually in play (setting your own
                 // or defending the opponent's). Once you're back to Waiting it should clear,
                 // rather than leave the last combo lingering on screen.
-                if (Main.eventManager.SKATE.playerState != GameOfSkate.GOSState.Waiting) TrickName();
+                if (st != GameOfSkate.GOSState.Waiting) TrickName();
             }
 
             if (trickConfirmation != null)
             {
-                Rect confirmationContainer = new Rect(Screen.width - 340, Screen.height - 120, 300, 120);
+                float s = UiScale;
+                Rect confirmationContainer = new Rect(Screen.width - 340 * s, Screen.height - 120 * s, 300 * s, 120 * s);
                 GUILayout.BeginArea(confirmationContainer);
-                GUILayout.BeginVertical(GUILayout.Width(300));
+                GUILayout.BeginVertical(GUILayout.Width(300 * s));
                 GUILayout.Label("Confirm trick? " + Utils.ComboName(), styleSmall);
-                GUILayout.BeginHorizontal(GUILayout.Width(300));
+                GUILayout.BeginHorizontal(GUILayout.Width(300 * s));
                 GUILayout.Label((confirmTrick ? "• " : "") + "Set trick", styleSmall);
                 GUILayout.Label((confirmTrick ? "" : "• ") + "Redo (" + Main.eventManager.SKATE.retries + ")", styleSmall);
                 GUILayout.EndHorizontal();
@@ -317,9 +403,10 @@ namespace MultiplayerEvents
 
             // Bottom-right, matching the trick-confirm HUD (invites are auto-declined
             // while in a game, so this never overlaps the confirm box).
-            Rect rect = new Rect(Screen.width - 340, Screen.height - 120, 300, 120);
+            float s = UiScale;
+            Rect rect = new Rect(Screen.width - 340 * s, Screen.height - 120 * s, 300 * s, 120 * s);
             GUILayout.BeginArea(rect);
-            GUILayout.BeginVertical(GUILayout.Width(300));
+            GUILayout.BeginVertical(GUILayout.Width(300 * s));
             GUILayout.Label(nick + " invited you", styleSmall);
             GUILayout.Label(what + "  (" + secs + "s)", styleSmall);
             GUILayout.Label("A / X accept, B / O decline", styleRightNoFont);
@@ -336,10 +423,20 @@ namespace MultiplayerEvents
 
         void TrickName()
         {
-            Rect trickContainer = new Rect(40, 40, Screen.width - 80, 60);
+            float s = UiScale;
+            string name = Utils.ComboName();
+            if (name == "") return;
+
+            // When defending, make it explicit this is the trick to reproduce.
+            GameOfSkate skate = Main.eventManager.SKATE;
+            string label = (skate != null && skate.playerState == GameOfSkate.GOSState.Defending)
+                ? "Match:  " + name
+                : name;
+
+            Rect trickContainer = new Rect(40 * s, 40 * s, Screen.width - 80 * s, 60 * s);
             GUILayout.BeginArea(trickContainer);
             GUILayout.BeginHorizontal();
-            GUILayout.Label(Utils.ComboName(), styleCenterTrick);
+            GUILayout.Label(label, styleCenterTrick);
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }

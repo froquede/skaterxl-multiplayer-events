@@ -309,6 +309,15 @@ namespace MultiplayerEvents
                 GUILayout.Space(6);
 
                 GUILayout.BeginHorizontal();
+                GUILayout.Label("Ignore manuals under (s)", GUILayout.Width(lw));
+                if (GUILayout.Button("-", GUILayout.Width(28))) settings.smallManualMaxSeconds = Mathf.Max(0f, settings.smallManualMaxSeconds - 0.05f);
+                GUILayout.Label(settings.smallManualMaxSeconds.ToString("0.00"), GUILayout.Width(36));
+                if (GUILayout.Button("+", GUILayout.Width(28))) settings.smallManualMaxSeconds = Mathf.Min(1f, settings.smallManualMaxSeconds + 0.05f);
+                GUILayout.EndHorizontal();
+                GUILayout.Label("A tiny manual before a pop won't change the trick", text);
+                GUILayout.Space(6);
+
+                GUILayout.BeginHorizontal();
                 GUILayout.Label("S.K.A.T.E. word (host)", GUILayout.Width(lw));
                 settings.skateWord = GUILayout.TextField(settings.skateWord, GameConfig.MaxSkateWordLength, GUILayout.Width(120));
                 GUILayout.EndHorizontal();

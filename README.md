@@ -45,6 +45,21 @@ get a confirm prompt:
 A trick already used earlier in the game can't be set again, just like the real thing.
 First to spell **S.K.A.T.E.** loses.
 
+The HUD calls out whose turn it is (with a sound on each turn change); while defending,
+the trick to match shows as **Match: …** and your own last attempt as **You: …** so it's
+clear what the game registered. A tiny **manual** flicked in right before a pop is ignored,
+so it still registers as the clean trick (threshold tunable — see *Ignore manuals under*).
+
+Two extra actions are **held** (not tapped) on the camera‑pan d‑pad axis, so they never
+trigger the respawn binds on d‑pad up/down:
+
+- **Hold D‑pad left** (while it's your turn to set) — **pass the turn** without bailing.
+- **Hold D‑pad right** (while waiting on the opponent) — **spectate** them via Skater XL's
+  built‑in spectate; it returns to you automatically when it's your turn again.
+
+On **match point** (one letter from losing) the defender gets **two tries** at the set
+trick before that final, game‑losing letter counts.
+
 ### Settings
 
 | Setting | Description |
@@ -52,6 +67,7 @@ First to spell **S.K.A.T.E.** loses.
 | **S.K.A.T.E. letters active color** | Color of letters you've earned. Applies live. |
 | **S.K.A.T.E. letters disabled color** | Color of letters not yet earned. Applies live. |
 | **Max retries while setting** | How many redos the setter gets per turn (0–5). Drives the `Redo (N)` counter. |
+| **Ignore manuals under (s)** | Manuals held for less than this (0–1s) are treated as incidental and dropped from the trick used for setting/matching, so a clean trick popped right after a tiny manual still counts. |
 | **S.K.A.T.E. word** | The word to spell when you *host* a game (e.g. `SKATE`, `SK8`). Letters only, up to 8. The invitee adopts the host's word. |
 
 Color changes apply immediately; **Save** persists them between sessions.

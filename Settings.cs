@@ -12,6 +12,7 @@ namespace MultiplayerEvents
         public Color fontColorAccent = Color.white;
         public int maxRetries = GameConfig.DefaultRetries; // redo attempts allowed per setting turn
         public string skateWord = GameConfig.DefaultSkateWord; // characters spelled to lose (S.K.A.T.E.); letters or digits
+        public float smallManualMaxSeconds = GameConfig.SmallManualMaxSeconds; // manuals shorter than this are ignored when matching tricks
 
         // Blocked players ("Nick | UserId"; UserId may be empty for a name-only block). A blocked
         // player can't invite you to any event, is hidden from opponent lists, and their event

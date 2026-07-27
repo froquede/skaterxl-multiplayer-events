@@ -68,11 +68,24 @@ namespace MultiplayerEvents
         public const string EventEnd = "eventEnd";
     }
 
-    /// <summary>Rewired action ids/names read from the player input.</summary>
+    /// <summary>
+    /// Rewired action ids/names read from the player input. Per RewiredConsts.Action:
+    /// Up=67, Down=68, Right=69, Left=70. (The two confirm-toggle ids below are named
+    /// left/right but are really right/left; it only toggles two options, so harmless.)
+    /// </summary>
     static class InputBinding
     {
         public const int DpadLeftAction = 69;   // toggle confirm option
         public const int DpadRightAction = 70;  // toggle confirm option
+
+        // Pass-turn / spectate are HELD on Dpad Left/Right. Dpad Up/Down are the game's
+        // respawn / set-respawn (Up teleports) and fire on the press edge, so they're
+        // off-limits; Left/Right only pan the camera. Held (not tapped) so a stray pan
+        // can't trigger them.
+        public const int PassTurn = 70;          // hold DpadLeft  - pass your setting turn
+        public const int Spectate = 69;          // hold DpadRight - spectate the opponent
+        public const float HoldSeconds = 0.6f;   // how long to hold before it fires
+
         public const string Confirm = "A";
         public const string Cancel = "B";
     }
@@ -92,6 +105,15 @@ namespace MultiplayerEvents
         public const string PresencePropertyKey = "ME_ver"; // Photon custom prop advertising the mod
         public const string DefaultSkateWord = "SKATE";
         public const int MaxSkateWordLength = 8;            // keeps the HUD readable
+
+        // A manual shorter than this (seconds) is treated as incidental and stripped from
+        // the trick used for setting/matching, so a clean trick popped right after a tiny
+        // manual still registers as that clean trick. Tunable in settings.
+        public const float SmallManualMaxSeconds = 0.3f;
+
+        // Attempts a defender gets at the set trick when one letter from losing (match
+        // point): the final, game-losing letter only counts after this many failed defenses.
+        public const int LastLetterTries = 2;
 
         // Basic, non-exhaustive block list. The word is drawn on other players' screens,
         // so this just stops the obvious trolling; it is not meant to be comprehensive.
