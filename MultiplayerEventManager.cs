@@ -47,6 +47,9 @@ namespace MultiplayerEvents
         public string incomingRaceId = "";
         public int incomingRaceLaps = GameConfig.DefaultRaceLaps;
         public float incomingRaceExpiry = 0f;
+        // The last course we hosted (A,B point pairs) + laps, so the admin can rematch/reuse it.
+        public List<Vector3> lastRaceCheckpoints = new List<Vector3>();
+        public int lastRaceLaps = GameConfig.DefaultRaceLaps;
 
         string myUserId => MultiplayerManager.Instance.localPlayer.UserId;
 
@@ -338,8 +341,30 @@ namespace MultiplayerEvents
         {
             if (race == null || !isEventOwner || race.checkpoints.Count == 0) return;
             raceLobbyOpen = false;
+            SaveCourse(); // remember this course so it can be re-raced with Rematch
             int startTime = PhotonNetwork.ServerTimestamp + (int)(GameConfig.RaceStartCountdownSeconds * 1000f);
             race.StartAsHost(raceJoined, startTime);
+        }
+
+        void SaveCourse()
+        {
+            lastRaceCheckpoints = new List<Vector3>();
+            for (int i = 0; i < race.checkpoints.Count; i++)
+            {
+                lastRaceCheckpoints.Add(race.checkpoints[i].pointA.transform.position);
+                lastRaceCheckpoints.Add(race.checkpoints[i].pointB.transform.position);
+            }
+            lastRaceLaps = race.laps;
+        }
+
+        // Host: recreate the last course and open a fresh lobby - a one-click way to run it again.
+        public void RematchRace()
+        {
+            if (!Utils.isOnline() || multiplayerEvent != null || lastRaceCheckpoints.Count == 0) return;
+            CreateEvent(EventType.Race, new object[] { }); // become host again, fresh raceId
+            race.laps = lastRaceLaps;
+            race.BuildCheckpoints(lastRaceCheckpoints);
+            OpenRaceLobby();
         }
 
         // Host or participant: tear the race down for everyone in it.

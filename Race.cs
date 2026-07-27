@@ -102,7 +102,7 @@ namespace MultiplayerEvents
             BeginRace();
         }
 
-        void BuildCheckpoints(List<Vector3> points)
+        public void BuildCheckpoints(List<Vector3> points)
         {
             DestroyCheckpoints();
             int count = points.Count / 2; // (A, B) pairs
@@ -127,6 +127,7 @@ namespace MultiplayerEvents
             state = EventState.Running;
 
             TeleportToStart();
+            UpdateNextIndicator();
 
             float secs = Mathf.Max(0f, (startServerTime - PhotonNetwork.ServerTimestamp) / 1000f);
             Main.tick.StartCountdown(secs);
@@ -197,6 +198,7 @@ namespace MultiplayerEvents
                     finishedLocally = true;
                     BroadcastFinish(me.totalMs);
                     Utils.ShowNotification("Finished - " + FormatTime(me.totalMs), 4f);
+                    UpdateNextIndicator(); // all off once finished
                     return;
                 }
 
@@ -204,6 +206,15 @@ namespace MultiplayerEvents
             }
 
             BroadcastProgress(me);
+            UpdateNextIndicator();
+        }
+
+        // Point the beacon at the local racer's current target gate (each client, its own next).
+        void UpdateNextIndicator()
+        {
+            if (!progress.TryGetValue(myUserId, out RaceProgress me)) return;
+            for (int i = 0; i < checkpoints.Count; i++)
+                if (checkpoints[i] != null) checkpoints[i].SetNext(!finishedLocally && i == me.nextCp);
         }
 
         // Move the local player's respawn point to where they crossed the gate, so a bail sends

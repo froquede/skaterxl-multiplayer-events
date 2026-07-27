@@ -151,9 +151,11 @@ namespace MultiplayerEvents
                                 {
                                     int cpCount = eventManager.race.checkpoints.Count;
 
-                                    if (GUILayout.Button("Add Checkpoint", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                    bool placing = Main.cursor != null && Main.cursor.active;
+                                    if (GUILayout.Button(placing ? "Done Placing" : "Add Checkpoint", GUILayout.Height(42f), GUILayout.Width(212f)))
                                     {
-                                        Utils.EnableCursor();
+                                        if (placing) Utils.DisableCursor();
+                                        else Utils.EnableCursor();
                                     }
                                     GUILayout.Label("Checkpoints: " + cpCount, text);
                                     if (cpCount > 0 && GUILayout.Button("Clear Checkpoints", GUILayout.Height(28f), GUILayout.Width(212f)))
@@ -293,6 +295,14 @@ namespace MultiplayerEvents
                             if (GUILayout.Button("Create Race (preview)", GUILayout.Height(42f), GUILayout.Width(212f)))
                             {
                                 eventManager.CreateEvent(EventType.Race, new object[] { });
+                            }
+                            if (eventManager.lastRaceCheckpoints.Count > 0)
+                            {
+                                GUILayout.Space(6);
+                                if (GUILayout.Button("Rematch Race (reuse course)", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                {
+                                    eventManager.RematchRace();
+                                }
                             }
                         }
                     }
