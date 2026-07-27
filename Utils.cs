@@ -146,8 +146,8 @@ namespace MultiplayerEvents
 
             GameObject fallbackCamera = PlayerController.Instance.skaterController.transform.parent.parent.Find("Fallback Camera").gameObject;
             fallbackCamera.GetComponent<CinemachineFallbackCamera>().enabled = true;
-
-            Main.eventManager.race.SyncCheckPoints();
+            // Checkpoints stay local to the host during placement; they're sent to participants
+            // only when the race starts (Race.StartAsHost), so nothing here to broadcast.
         }
 
         public static void DisableCameraCollider(bool enabled)

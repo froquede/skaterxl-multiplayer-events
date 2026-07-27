@@ -6,6 +6,7 @@ namespace MultiplayerEvents
     public class CheckPoint : MonoBehaviour
     {
         public Point pointA, pointB;
+        public int order = -1; // position in the race sequence (0-based); set when added to a race
         GameObject cube;
         Material cubeMaterial;
 
@@ -13,7 +14,12 @@ namespace MultiplayerEvents
         {
             cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             cube.transform.parent = transform;
-            cube.GetComponent<BoxCollider>().isTrigger = true;
+            BoxCollider box = cube.GetComponent<BoxCollider>();
+            box.isTrigger = true;
+            // The visual stays a thin wall (localScale.z ~ 0.01), but the trigger box is made
+            // much deeper/taller in local units so a skater at speed can't tunnel through it:
+            // world size = localScale * box.size => ~gate-wide x ~3m tall x ~1.5m deep.
+            box.size = new Vector3(1f, 6f, 150f);
             cube.AddComponent<CheckpointTrigger>();
 
             cubeMaterial = new Material(Shader.Find("HDRP/Lit"));

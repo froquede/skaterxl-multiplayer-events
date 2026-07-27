@@ -144,15 +144,49 @@ namespace MultiplayerEvents
                         {
                             if (eventManager.race != null)
                             {
+                                GUILayout.Label("Race (preview)", text);
+                                GUILayout.Space(4);
+
                                 if (e.state == EventState.Stopped)
                                 {
                                     if (GUILayout.Button("Add Checkpoint", GUILayout.Height(42f), GUILayout.Width(212f)))
                                     {
                                         Utils.EnableCursor();
                                     }
-                                    if (GUILayout.Button("Start Race", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                    GUILayout.Label("Checkpoints: " + eventManager.race.checkpoints.Count, text);
+                                    GUILayout.Space(4);
+
+                                    GUILayout.BeginHorizontal();
+                                    GUILayout.Label("Laps", GUILayout.Width(60));
+                                    if (GUILayout.Button("-", GUILayout.Width(28))) eventManager.race.laps = Mathf.Max(1, eventManager.race.laps - 1);
+                                    GUILayout.Label(eventManager.race.laps.ToString(), GUILayout.Width(24));
+                                    if (GUILayout.Button("+", GUILayout.Width(28))) eventManager.race.laps = Mathf.Min(GameConfig.MaxRaceLaps, eventManager.race.laps + 1);
+                                    GUILayout.EndHorizontal();
+                                    GUILayout.Space(6);
+
+                                    if (!eventManager.raceLobbyOpen)
                                     {
-                                        eventManager.StartEvent();
+                                        if (GUILayout.Button("Open Lobby", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                        {
+                                            eventManager.OpenRaceLobby();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        GUILayout.Label("Joined: " + eventManager.raceJoined.Count, text);
+                                        GUILayout.Space(4);
+                                        if (eventManager.race.checkpoints.Count > 0)
+                                        {
+                                            if (GUILayout.Button("Start Race", GUILayout.Height(42f), GUILayout.Width(212f)))
+                                            {
+                                                eventManager.StartRace();
+                                            }
+                                        }
+                                        else GUILayout.Label("Add at least one checkpoint", text);
+                                        if (GUILayout.Button("Close Lobby", GUILayout.Height(28f), GUILayout.Width(212f)))
+                                        {
+                                            eventManager.CancelRaceLobby();
+                                        }
                                     }
 
                                     GUILayout.Space(12);
@@ -166,7 +200,7 @@ namespace MultiplayerEvents
                                 {
                                     if (GUILayout.Button("Stop Race", GUILayout.Height(42f), GUILayout.Width(212f)))
                                     {
-                                        eventManager.StopEvent();
+                                        eventManager.StopRace();
                                     }
                                 }
                             }
@@ -248,17 +282,16 @@ namespace MultiplayerEvents
                             }
                         }
 
-                        // Race is hidden for the public launch: it's incomplete (no win detection,
-                        // admin-only checkpoints) and starting it broadcasts a room-wide Running
-                        // event that resets everyone's in-progress S.K.A.T.E. games. Re-enable once
-                        // Race is finished and routed like S.K.A.T.E. (per-opponent, not userid=="").
-                        //if (Utils.isAdmin())
-                        //{
-                        //    if (GUILayout.Button("Create Race (not working yet)", GUILayout.Height(42f), GUILayout.Width(212f)))
-                        //    {
-                        //        eventManager.CreateEvent(EventType.Race, new object[] { });
-                        //    }
-                        //}
+                        // Race (preview): admin-hosted, lobby/invite based, and fully self-scoped by
+                        // raceId so it can't disturb other players' events. Admin-only for now.
+                        if (Utils.isAdmin())
+                        {
+                            GUILayout.Space(8);
+                            if (GUILayout.Button("Create Race (preview)", GUILayout.Height(42f), GUILayout.Width(212f)))
+                            {
+                                eventManager.CreateEvent(EventType.Race, new object[] { });
+                            }
+                        }
                     }
                 }
                 else

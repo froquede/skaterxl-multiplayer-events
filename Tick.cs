@@ -75,6 +75,17 @@ namespace MultiplayerEvents
                 }
             }
 
+            // Race lobby prompt (only one of the two prompts is ever up - busy check gates it).
+            if (em.hasIncomingRaceInvite)
+            {
+                if (Time.time > em.incomingRaceExpiry) em.DeclineIncomingRace();
+                else if (PlayerController.Instance != null)
+                {
+                    if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm)) em.JoinIncomingRace();
+                    else if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Cancel)) em.DeclineIncomingRace();
+                }
+            }
+
             if (trickConfirmation != null && PlayerController.Instance != null)
             {
                 var cInput = PlayerController.Instance.inputController.player;
@@ -352,6 +363,8 @@ namespace MultiplayerEvents
                 if (st != GameOfSkate.GOSState.Waiting || (skate.myTurn && skate.actualTrickCombo != null)) TrickName();
             }
 
+            if (Main.eventManager.race != null && Main.eventManager.race.running) DrawRaceHUD();
+
             if (trickConfirmation != null)
             {
                 float s = UiScale;
@@ -424,6 +437,7 @@ namespace MultiplayerEvents
         void DrawInvitePrompt()
         {
             MultiplayerEventManager em = Main.eventManager;
+            if (em.hasIncomingRaceInvite) { DrawRacePrompt(em); return; }
             if (!em.hasIncomingInvite) return;
 
             int secs = Mathf.Max(0, Mathf.CeilToInt(em.incomingInviteExpiry - Time.time));
@@ -441,6 +455,46 @@ namespace MultiplayerEvents
             GUILayout.Label(nick + " invited you", styleSmall);
             GUILayout.Label(what + "  (" + secs + "s)", styleSmall);
             GUILayout.Label("A / X accept, B / O decline", styleRightNoFont);
+            GUILayout.EndVertical();
+            GUILayout.EndArea();
+        }
+
+        void DrawRacePrompt(MultiplayerEventManager em)
+        {
+            float s = UiScale;
+            int secs = Mathf.Max(0, Mathf.CeilToInt(em.incomingRaceExpiry - Time.time));
+            string nick = Utils.NickOf(em.incomingRaceFrom);
+
+            Rect rect = new Rect(Screen.width - 340 * s, Screen.height - 120 * s, 300 * s, 120 * s);
+            GUILayout.BeginArea(rect);
+            GUILayout.BeginVertical(GUILayout.Width(300 * s));
+            GUILayout.Label(nick + " opened a Race", styleSmall);
+            GUILayout.Label(em.incomingRaceLaps + (em.incomingRaceLaps == 1 ? " lap" : " laps") + "  (" + secs + "s)", styleSmall);
+            GUILayout.Label("A / X join, B / O decline", styleRightNoFont);
+            GUILayout.EndVertical();
+            GUILayout.EndArea();
+        }
+
+        // Live race ranking: finishers (by time) above racers still going (by furthest progress).
+        void DrawRaceHUD()
+        {
+            float s = UiScale;
+            Race race = Main.eventManager.race;
+            List<RaceProgress> ranking = race.Ranking();
+            string me = MultiplayerManager.Instance.localPlayer.UserId;
+
+            Rect panel = new Rect(Screen.width - 320 * s, 80 * s, 300 * s, (70 + 26 * ranking.Count) * s);
+            GUILayout.BeginArea(panel);
+            GUILayout.BeginVertical();
+            GUILayout.Label("Race - " + race.laps + (race.laps == 1 ? " lap" : " laps"), styleSmall);
+            for (int i = 0; i < ranking.Count; i++)
+            {
+                RaceProgress p = ranking[i];
+                string status = p.finished
+                    ? Race.FormatTime(p.totalMs)
+                    : "L" + (p.lapsDone + 1) + "  " + p.nextCp + "/" + race.checkpoints.Count;
+                GUILayout.Label((i + 1) + ". " + race.NickFor(p.userId) + "   " + status, p.userId == me ? styleSmallAccent : styleSmall);
+            }
             GUILayout.EndVertical();
             GUILayout.EndArea();
         }

@@ -44,6 +44,23 @@ namespace MultiplayerEvents
         public const byte RaceCheckpointSync = 67;
         public const byte Invitation = 68;             // invite/accept/decline/cancel handshake
         public const byte SkateGame = 70;              // in-match S.K.A.T.E. messages
+        public const byte RaceSession = 71;            // race lobby + in-race telemetry (self-scoped by raceId)
+    }
+
+    /// <summary>
+    /// Keys for the payload sent over <see cref="NetCode.RaceSession"/>. Every message
+    /// carries a raceId at index 1; recipients that aren't part of that race ignore it,
+    /// so a race never touches non-participants (no overwrite, no stray objects).
+    /// </summary>
+    static class RaceMessage
+    {
+        public const string Open = "raceOpen";      // host -> room: lobby open   [key, raceId, hostPlayerId, laps]
+        public const string Join = "raceJoin";      // player -> host: I'm in      [key, raceId, joinerPlayerId]
+        public const string Cancel = "raceCancel";  // host -> room: lobby closed  [key, raceId]
+        public const string Start = "raceStart";    // host -> room: go            [key, raceId, laps, startServerTime, participantsCsv, cpCount, A0,B0,A1,B1...]
+        public const string Progress = "raceProg";  // racer -> race: checkpoint   [key, raceId, userId, lapsDone, nextCp, serverTime]
+        public const string Finish = "raceFin";     // racer -> race: finished     [key, raceId, userId, totalMs]
+        public const string Stop = "raceStop";      // host -> race: teardown      [key, raceId]
     }
 
     /// <summary>
@@ -105,6 +122,13 @@ namespace MultiplayerEvents
         public const string PresencePropertyKey = "ME_ver"; // Photon custom prop advertising the mod
         public const string DefaultSkateWord = "SKATE";
         public const int MaxSkateWordLength = 8;            // keeps the HUD readable
+
+        // --- Race (preview) ---
+        public const int DefaultRaceLaps = 1;
+        public const int MaxRaceLaps = 10;
+        public const float RaceStartCountdownSeconds = 5f;  // between "Start" and the race clock starting
+        public const float RaceLobbyTimeoutSeconds = 45f;   // how long a join prompt stays up
+        public const string RaceParticipantSeparator = ","; // UserIds are GUID-ish, comma-safe
 
         // A manual shorter than this (seconds) is treated as incidental and stripped from
         // the trick used for setting/matching, so a clean trick popped right after a tiny
