@@ -327,6 +327,12 @@ namespace MultiplayerEvents
                     if (st != GameOfSkate.GOSState.Setting && skate.lastRegisteredTrick != ""
                         && Time.time - skate.lastRegisteredTime < GameConfig.RegisteredTrickSeconds)
                         GUILayout.Label("You: " + skate.lastRegisteredTrick, styleSmall);
+
+                    // Show the contextual hold-dpad action when it's actually available.
+                    string hold = st == GameOfSkate.GOSState.Setting ? "Hold D-pad Left: pass turn"
+                                : st == GameOfSkate.GOSState.Waiting ? (spectating ? "Hold D-pad Right: stop spectating" : "Hold D-pad Right: spectate")
+                                : "";
+                    if (hold != "") GUILayout.Label(hold, styleRightNoFont);
                 }
                 GUILayout.EndVertical();
                 GUILayout.EndArea();

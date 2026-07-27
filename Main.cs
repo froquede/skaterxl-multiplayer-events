@@ -287,22 +287,19 @@ namespace MultiplayerEvents
                             }
                         }
 
-                        // Race (preview): admin-hosted, lobby/invite based, and fully self-scoped by
-                        // raceId so it can't disturb other players' events. Admin-only for now.
-                        if (Utils.isAdmin())
+                        // Race (preview): lobby/invite based, and fully self-scoped by raceId so it
+                        // can't disturb other players' events. Anyone can host - no admin needed.
+                        GUILayout.Space(8);
+                        if (GUILayout.Button("Create Race (preview)", GUILayout.Height(42f), GUILayout.Width(212f)))
                         {
-                            GUILayout.Space(8);
-                            if (GUILayout.Button("Create Race (preview)", GUILayout.Height(42f), GUILayout.Width(212f)))
+                            eventManager.CreateEvent(EventType.Race, new object[] { });
+                        }
+                        if (eventManager.lastRaceCheckpoints.Count > 0)
+                        {
+                            GUILayout.Space(6);
+                            if (GUILayout.Button("Rematch Race (reuse course)", GUILayout.Height(42f), GUILayout.Width(212f)))
                             {
-                                eventManager.CreateEvent(EventType.Race, new object[] { });
-                            }
-                            if (eventManager.lastRaceCheckpoints.Count > 0)
-                            {
-                                GUILayout.Space(6);
-                                if (GUILayout.Button("Rematch Race (reuse course)", GUILayout.Height(42f), GUILayout.Width(212f)))
-                                {
-                                    eventManager.RematchRace();
-                                }
+                                eventManager.RematchRace();
                             }
                         }
                     }
