@@ -60,21 +60,23 @@ namespace MultiplayerEvents
                 float lsx = PlayerController.Instance.inputController.LeftStick.rawInput.pos.x;
                 float lsy = PlayerController.Instance.inputController.LeftStick.rawInput.pos.y;
                 Vector3 move = Quaternion.Euler(0f, camYaw, 0f) * new Vector3(lsx, 0f, lsy);
-                Vector3 candidate = lastHitPoint + move * (camDist / 5.66f) / 4f;
+                // Chase a point just ahead of the CURRENT cursor position (bounded pursuit, so speed
+                // matches the original) - not the accumulating lastHitPoint, which compounded velocity.
+                Vector3 basePos = transform.position;
+                Vector3 candidate = basePos + move * (camDist / 5.66f) / 4f;
 
-                // Snap to the ground beneath the target, raycasting from well ABOVE it. Reject a big
-                // drop so sliding off an edge can't send the cursor down onto the collider far below
-                // the map - instead it keeps its height and glides over the gap until real ground is
-                // under it again.
+                // Snap to ground near the current height only: start just above the cursor and reach
+                // a short way down. This follows slopes smoothly, ignores anything high overhead (no
+                // snapping up to a ceiling/far collider), and when there's no ground close below - an
+                // edge/gap - keeps the height and glides over instead of dropping into the void.
                 RaycastHit hit;
-                if (Physics.Raycast(new Vector3(candidate.x, lastHitPoint.y + 300f, candidate.z), Vector3.down, out hit, Mathf.Infinity, LayerUtility.GroundMask)
-                    && hit.point.y > lastHitPoint.y - 20f)
+                if (Physics.Raycast(new Vector3(candidate.x, basePos.y + 3f, candidate.z), Vector3.down, out hit, 11f, LayerUtility.GroundMask))
                 {
                     lastHitPoint = hit.point;
                 }
                 else
                 {
-                    lastHitPoint = new Vector3(candidate.x, lastHitPoint.y, candidate.z); // glide over the gap
+                    lastHitPoint = new Vector3(candidate.x, basePos.y, candidate.z); // glide over the gap
                 }
 
                 transform.position = Vector3.Lerp(transform.position, lastHitPoint, Time.deltaTime * 12f);
