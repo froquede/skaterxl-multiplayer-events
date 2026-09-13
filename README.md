@@ -20,17 +20,24 @@ and a checkpoint **Race** (preview).
 1. Install [Unity Mod Manager](https://www.nexusmods.com/site/mods/21) and point it at Skater XL.
 2. Drop the built `MultiplayerEvents` mod folder into your Skater XL `Mods` directory
    (or install the zip through UMM).
-3. Launch the game, connect to multiplayer, and open the UMM UI (**Ctrl + F10** by default).
+3. Launch the game and join a multiplayer room.
 
 ## Usage
 
-All event creation and settings live in the UMM window under **Multiplayer Events**.
+The mod lives in the game's own menus (mouse and controller both work):
+
+- **Pause → Multiplayer → Events** (while in a room) — S.K.A.T.E. invites, race setup, rematch, stop.
+- **Pause → Settings → Multiplayer Events** — the settings below and your blocked players.
+
+The UMM window (**Ctrl + F10**) only points to those menus.
 
 ### Game of S.K.A.T.E.
 
 1. Join a multiplayer room with at least one other player who also has the mod.
-2. Open the mod UI → **Game of S.K.A.T.E.**
-3. Select an opponent (only modded players are listed) and press **Invite**.
+2. Open **Pause → Multiplayer → Events**.
+3. Pick an **Opponent** (only modded, non-blocked players are listed; left/right to cycle) and press **Invite**.
+   Closing the page without an invite out (e.g. after a decline) drops the unused game setup.
+   Shortcut: **Pause → Multiplayer → Players**, pick a player who has the mod → **Invite to Game of S.K.A.T.E.**
 4. The opponent gets an in‑world prompt — **A** to accept, **B** to decline (20s to answer).
 5. On accept, a coin flip decides who sets first. After a game, **Rematch** re‑invites the same opponent.
 
@@ -65,11 +72,12 @@ trick before that final, game‑losing letter counts.
 A checkpoint race through gates you place yourself. It's a **preview** — expect rough
 edges and share feedback.
 
-1. Open the mod UI → **Create Race (preview)** (any player can host).
-2. **Add Checkpoint** drops you into a placement view. Right stick orbits the camera,
+1. Open **Pause → Multiplayer → Events** → **Create Race** (any player can host).
+2. **Add Checkpoints** closes the menu and drops you into a placement view. Right stick orbits the camera,
    triggers zoom, left stick moves the cursor. Press **A** twice to drop a gate (the two
-   posts), repeat for each gate, then **B** or **Done Placing** to exit. Gates are raced
-   in the order you place them.
+   posts), repeat for each gate, then **B** (or **Done Placing** in the menu) to exit. **X** undoes
+   the half-placed gate, or the last checkpoint. Gates are raced in the order you place them;
+   the menu also has **Remove Last Checkpoint** and **Clear Checkpoints**.
 3. Set the number of **laps**, then **Open Lobby** to invite the room. Players get a
    prompt — **A** to join, **B** to decline. (You'll only be asked if you're not already
    in an event.)
@@ -87,10 +95,12 @@ time. Only people who joined take part — it never disturbs other players' even
 | **S.K.A.T.E. letters active color** | Color of letters you've earned. Applies live. |
 | **S.K.A.T.E. letters disabled color** | Color of letters not yet earned. Applies live. |
 | **Max retries while setting** | How many redos the setter gets per turn (0–5). Drives the `Redo (N)` counter. |
-| **Ignore manuals under (s)** | Manuals held for less than this (0–1s) are treated as incidental and dropped from the trick used for setting/matching, so a clean trick popped right after a tiny manual still counts. |
+| **Ignore manuals under** | Manuals held for less than this (0–1s, 0.05s steps) are treated as incidental and dropped from the trick used for setting/matching, so a clean trick popped right after a tiny manual still counts. |
 | **S.K.A.T.E. word** | The word to spell when you *host* a game (e.g. `SKATE`, `SK8`). Letters only, up to 8. The invitee adopts the host's word. |
 
-Color changes apply immediately; **Save** persists them between sessions.
+Changes apply immediately and are saved when you leave the settings page. The same page lists
+**Moderation**: pick a **Player** from your room and **Block player** (press twice), unblock
+anyone on your list, or **Block by name**.
 
 ---
 
@@ -101,7 +111,8 @@ pluggable set of *events*.
 
 | File | Role |
 | --- | --- |
-| `Main.cs` | UMM entry point (`Main.Load`). Owns the mod `GameObject`, the UMM `OnGUI`, and global references (`eventManager`, `tick`, `cursor`, `settings`). |
+| `Main.cs` | UMM entry point (`Main.Load`). Owns the mod `GameObject`, a minimal UMM `OnGUI`, and global references (`eventManager`, `tick`, `cursor`, `settings`, `nativeMenu`). |
+| `NativeMenu.cs` | The mod UI inside the game's menus: an **Events** button + **Multiplayer Events** page in the multiplayer menu (cloned from the native player list frame, filled with a `ProceduralMenuPage`) and a **Multiplayer Events** settings category. Installed once `GameStateMachine` is initialized, removed on unload. |
 | `MultiplayerEventManager.cs` | Owns the event **lifecycle** — create / start / stop / end — and routes the shared lifecycle Photon message. Also aborts an event when an opponent leaves the room. |
 | `Event.cs` | Base class for every event: `state`, `participants`, `isWinner`, and `ToggleEventState(...)` which broadcasts a lifecycle change. |
 | `GameOfSkate.cs` | The S.K.A.T.E. mode: turn/letter state machine and its own Photon messages. |

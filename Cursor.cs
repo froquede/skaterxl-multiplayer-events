@@ -92,9 +92,18 @@ namespace MultiplayerEvents
 
                 if (temporaryPoint != null) temporaryPoint.transform.position = transform.position;
 
-                if (PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
+                // Only a press that started while placing counts, so the A that opened placement
+                // (from a menu) doesn't drop a point when it's released.
+                if (PlayerController.Instance.inputController.player.GetButtonDown(InputBinding.Confirm)) confirmArmed = true;
+                if (confirmArmed && PlayerController.Instance.inputController.player.GetButtonUp(InputBinding.Confirm))
                 {
+                    confirmArmed = false;
                     AddPoint();
+                }
+
+                if (PlayerController.Instance.inputController.player.GetButtonDown(InputBinding.Undo))
+                {
+                    Undo();
                 }
 
                 if (PlayerController.Instance.inputController.player.GetButton(InputBinding.Cancel))
@@ -102,7 +111,21 @@ namespace MultiplayerEvents
                     ClearPlacement(); // exit + drop the half-placed preview gate
                 }
             }
-            else if (renderer.enabled) renderer.enabled = false;
+            else
+            {
+                confirmArmed = false;
+                if (renderer.enabled) renderer.enabled = false;
+            }
+        }
+
+        bool confirmArmed = false;
+
+        // Undo: cancel a half-placed gate, otherwise remove the last committed checkpoint.
+        void Undo()
+        {
+            bool halfPlaced = pointA != null && pointB == null;
+            DestroyPlacementObjects();
+            if (!halfPlaced && Main.eventManager != null) Main.eventManager.RemoveLastRaceCheckpoint();
         }
 
         Point pointA;
@@ -157,6 +180,13 @@ namespace MultiplayerEvents
         public void ClearPlacement()
         {
             if (active) Utils.DisableCursor(); // restores the camera + sets active = false
+            DestroyPlacementObjects();
+            if (renderer != null) renderer.enabled = false;
+        }
+
+        // The cursor's own preview/placement objects (committed checkpoints are copies owned by the race).
+        void DestroyPlacementObjects()
+        {
             markDestroy = false;
             if (temporaryPoint != null) Destroy(temporaryPoint.gameObject);
             if (checkPoint != null) Destroy(checkPoint.gameObject);
@@ -164,7 +194,6 @@ namespace MultiplayerEvents
             if (pointB != null) Destroy(pointB.gameObject);
             checkPoint = null;
             pointA = pointB = temporaryPoint = null;
-            if (renderer != null) renderer.enabled = false;
         }
     }
 }

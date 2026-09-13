@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.0
+
+The mod now lives in the game's own menus (no more UMM window):
+
+- Pause → Multiplayer → Events: invite, rematch, race setup and lobby, stop or leave
+- Pause → Settings → Multiplayer Events: colors, gameplay, word and blocked players
+- Works with a controller, like the rest of the menus
+- Invite someone to S.K.A.T.E. straight from their page in the Players list
+- Block players from a picker in Settings
+
+Quality of life:
+
+- Starting a game or race closes the menu
+- Stop, leave, cancel and block ask for a second press
+- Remove the last checkpoint, or press X while placing to undo
+- Opening checkpoint placement no longer drops a post by itself
+
 ## v0.3.0
 
 New Race mode (preview):

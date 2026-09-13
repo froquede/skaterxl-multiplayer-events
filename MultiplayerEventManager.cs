@@ -413,6 +413,13 @@ namespace MultiplayerEvents
             if (race != null) race.DestroyCheckpoints();
         }
 
+        // Host: remove the last placed checkpoint (setup only).
+        public void RemoveLastRaceCheckpoint()
+        {
+            if (race == null || !isEventOwner) return;
+            if (race.RemoveLastCheckpoint()) Utils.ShowNotification("Checkpoint removed", 1.5f);
+        }
+
         // Joiner: accept the lobby prompt. We create our race only once Start arrives.
         public void JoinIncomingRace()
         {

@@ -332,15 +332,26 @@ namespace MultiplayerEvents
 
         public void DestroyCheckpoints()
         {
-            for (int i = 0; i < checkpoints.Count; i++)
-            {
-                CheckPoint cp = checkpoints[i];
-                if (cp == null) continue;
-                if (cp.pointA != null) Object.Destroy(cp.pointA.gameObject);
-                if (cp.pointB != null) Object.Destroy(cp.pointB.gameObject);
-                Object.Destroy(cp.gameObject);
-            }
+            for (int i = 0; i < checkpoints.Count; i++) DestroyCheckpoint(checkpoints[i]);
             checkpoints.Clear();
+        }
+
+        // Host, during setup: drop the most recently placed checkpoint.
+        public bool RemoveLastCheckpoint()
+        {
+            if (running || checkpoints.Count == 0) return false;
+            int last = checkpoints.Count - 1;
+            DestroyCheckpoint(checkpoints[last]);
+            checkpoints.RemoveAt(last);
+            return true;
+        }
+
+        static void DestroyCheckpoint(CheckPoint cp)
+        {
+            if (cp == null) return;
+            if (cp.pointA != null) Object.Destroy(cp.pointA.gameObject);
+            if (cp.pointB != null) Object.Destroy(cp.pointB.gameObject);
+            Object.Destroy(cp.gameObject);
         }
 
         public void Disable()

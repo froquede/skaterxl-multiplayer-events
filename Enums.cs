@@ -109,6 +109,7 @@ namespace MultiplayerEvents
 
         public const string Confirm = "A";
         public const string Cancel = "B";
+        public const string Undo = "X";          // checkpoint placement: undo the half-placed gate / last checkpoint
     }
 
     static class GameConfig
